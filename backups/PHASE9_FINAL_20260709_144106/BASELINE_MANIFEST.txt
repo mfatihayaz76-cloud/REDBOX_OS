@@ -1,0 +1,79 @@
+REDBOX OS PROTECTED BASELINE MANIFEST
+============================================================
+Created: 2026-07-09 14:44:16
+Snapshot: /Users/test/Desktop/REDBOX_OS/backups/PHASE9_FINAL_20260709_144106
+
+[PHASE 9 FINAL CONTRACT]
+PHASE=PHASE 9 FINAL
+STATUS=PASSED
+DB=database/redbox_os.db
+URETIM_COUNT=11
+URETIM_RECETE_COUNT=11
+HAMMADDE_TRACE_COUNT=88
+PAKETLEME_COUNT=13
+SEVKIYAT_COUNT=8
+SEVKIYAT_KALEM_COUNT=16
+TOPLAM_NET_URETIM_KG=2369.852
+TOPLAM_PAKETLENEN_KG=2362.000
+TOPLAM_PAKETLEME_FIRESI_KG=7.852
+TOPLAM_SEVK_KG=2352.000
+MAMUL_STOK_KG=10.000
+URETIM_GENEL_FARK_KG=0.000000
+PAKETLEME_GENEL_FARK_KG=0.000000
+RECIPE_PARTI_KG=20.412
+RECIPE_RAW_MATERIAL_COUNT=8
+BENECEL_ACCEPTED_LOT=2743063
+
+[PROTECTED DATA RULES]
+1. Live database changes require preflight.
+2. Live database changes require backup before write.
+3. No guessed schema or guessed column names.
+4. No guessed historical operational data.
+5. No INSERT/UPDATE/DELETE/ALTER/DROP on live DB without explicit approved change.
+6. PHASE 9 mass-balance contract must remain valid.
+7. 2026 historical migration data must not be silently rewritten.
+8. Inferred warehouse acceptance dates must remain identified as inferred/historical migration data.
+9. Accepted Benecel lot is 2743063.
+10. One production batch recipe total is 20.412 kg.
+
+[SQLITE BACKUP VALIDATION]
+LIVE_INTEGRITY=ok
+BACKUP_INTEGRITY=ok
+LIVE_FOREIGN_KEY=OK
+BACKUP_FOREIGN_KEY=OK
+TABLE_CONTRACT=MATCH
+SCHEMA_DIGEST=MATCH
+ALL_TABLE_ROW_COUNTS=MATCH
+ALL_TABLE_CONTENT_DIGESTS=MATCH
+TOTAL_LOGICAL_ROWS=208
+
+[SOURCE SHA256]
+f68ce83f3b1ecc1669f5bee4ea20e539c05739ba2941471355ebb7369abdc6f6  167701 BYTE  app.py
+df7fc8d900a108791abc7e20515a9b543ccea33add3428af262c23c1557101bd  96392 BYTE  app_before_reverse_trace.py
+541228b14d4fdff23024af21bdb95b6000b54746ebc06923346f44f95ea4ea89  7288 BYTE  database/db.py
+db577e24502578f35ba50e9f4d21d0fea289a15ce216eafe80e53a8ec7d1dde4  10130 BYTE  database/finished_stock_engine.py
+62345fc35c3791260f78fc05ed35c83a7c4ccfbbba7408d078640b009ee5b54d  1333 BYTE  database/import_2026_data.py
+f36b8569657b1735758a145746c783b6ea522e7a0f620ce9df2cad154f2c53b3  4267 BYTE  database/import_2026_depo_data.py
+ffd2b6cb3dc1470dd69a8d8b5a471a7a8f99d1cb22be8179471e3c044f9ccac6  6701 BYTE  database/import_2026_engine.py
+4db353f7384e8cdc8e66784a0162f292861ac8bfba35e8dc191d4acc6aeb7f56  11071 BYTE  database/import_2026_phase1.py
+3f587bbaec4671a81978e9f4cb2817d46ff573c0f12b2063cff4c10a1cf289a9  8483 BYTE  database/import_2026_rev23.py
+5bae3b2e139960472a5b3836e7160f8355af3c1bc887575a176951c42add9389  14659 BYTE  database/phase3_final_cross_audit.py
+5e4e9831e5a66682d2a9fbfbb67d0da50f6989ec8667c260a40e3e6da208bc8d  12439 BYTE  database/phase3_final_cross_audit_before_db_path_fix.py
+56d38b14196848d91a2ed638131cbf629ed7cfc431493bcaaf5be703b7cb21ef  7667 BYTE  database/phase4_dashboard_stock_preflight.py
+7239b9b140854dd29e6a935e785c333309c34c5503c02c6071ff615db70e5b41  5093 BYTE  database/raw_material_stock_engine.py
+74bb1076a82c42ca27f645f37400a6ad1e664169c59a5573421dd136cfde0513  30701 BYTE  database/report_engine.py
+b03d8984ad277477b8ddb61239d03f0dd9cffc502ab3d09cd0cdc168ad9d2d8b  16266 BYTE  database/rev23_phase1_final_import.py
+ad44330beb84bb77433773f9be4e66141125ea33e1a484ec3d0f13231eea25b0  8769 BYTE  database/rev23_phase1_preflight.py
+588259dc5da439b623540ad88fa708f86e413620d437d286e9b86d78dea9c88c  3320 BYTE  database/rev23_phase2_deep_read.py
+ad4ba3b3d909364d651d7b7f8b2fa78b3ece7d43b4993c2fa54cedb93400322d  24848 BYTE  database/rev23_phase2_final_import.py
+3f20bdc74c600d3e1ce58bd68758d85fea4cb6bc15ec886bd95f94eb126ff3f9  9006 BYTE  database/rev23_phase2_preflight.py
+7cc414825e95c21c3dd75905d1c0eecf852684d933078acaf83b5011ba8ae8a2  4751 BYTE  database/stock_engine.py
+544203b5c498c1e24f14d4f73a508f2b60740d879c09ae1f0a1fd93c3393fd0a  395 BYTE  test_redbox.py
+
+[CODEX BASELINE STATUS]
+CODEX_READ_ONLY_ARCHITECTURE_AUDIT=ALLOWED
+CODEX_LIVE_DB_WRITE=PROHIBITED
+CODEX_SCHEMA_GUESSING=PROHIBITED
+CODEX_AUTOMATIC_MIGRATION=PROHIBITED
+CODEX_MASS_BALANCE_REWRITE=PROHIBITED
+CODEX_HISTORICAL_DATA_REWRITE=PROHIBITED

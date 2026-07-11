@@ -1,0 +1,28 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# SQLite
+*.sqlite-shm
+*.sqlite-wal
+
+# Logs
+*.log
+
+# Temporary
+exports/
+
+# Test artifacts
+.phase_*/
+*.bak
+*.save
+*.pynn
+
+# Backup files
+app_before_reverse_trace.py
+app.py.*.bak
+app.py.*_backup
