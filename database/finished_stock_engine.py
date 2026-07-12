@@ -26,21 +26,6 @@ def mamul_stok_lotlari(conn=None):
                           AND px.ambalaj_gram = p.ambalaj_gram
                     ),
                     0
-                ) + COALESCE(
-                    (
-                        SELECT SUM(
-                            CASE
-                                WHEN msh.yon = 'CIKIS'
-                                THEN msh.paket_adedi
-                                WHEN msh.yon = 'GIRIS'
-                                THEN -msh.paket_adedi
-                                ELSE 0
-                            END
-                        )
-                        FROM mamul_stok_hareketleri msh
-                        WHERE msh.paketleme_id = p.id
-                    ),
-                    0
                 ) AS cikis_paket_adedi
             FROM paketleme p
             JOIN uretim u
@@ -148,21 +133,6 @@ def lot_ambalaj_stoklari(
                 p.koli_ici_adet,
                 COALESCE(
                     SUM(sk.paket_adedi),
-                    0
-                ) + COALESCE(
-                    (
-                        SELECT SUM(
-                            CASE
-                                WHEN msh.yon = 'CIKIS'
-                                THEN msh.paket_adedi
-                                WHEN msh.yon = 'GIRIS'
-                                THEN -msh.paket_adedi
-                                ELSE 0
-                            END
-                        )
-                        FROM mamul_stok_hareketleri msh
-                        WHERE msh.paketleme_id = p.id
-                    ),
                     0
                 ) AS cikis_paket_adedi
             FROM paketleme p
@@ -286,6 +256,8 @@ def mamul_stok_hareketi_ekle(
     aciklama=None,
 ):
     izinli_tipler = {
+        "PAKETLEME",
+        "SEVKIYAT",
         "TARIHSEL_KAPANIS",
         "IADE",
         "IMHA",
@@ -345,24 +317,15 @@ def mamul_stok_hareketi_ekle(
         )
 
     if yon == "CIKIS":
-        sevk_cikis = conn.execute("""
-            SELECT COALESCE(
-                SUM(paket_adedi),
-                0
-            )
-            FROM sevkiyat_kalemleri
-            WHERE paketleme_id = ?
-        """, (
-            paketleme_id,
-        )).fetchone()[0]
+        sevk_cikis = 0
 
         hareket_net = conn.execute("""
             SELECT COALESCE(
                 SUM(
                     CASE
-                        WHEN yon = 'CIKIS'
+                        WHEN yon='GIRIS'
                         THEN paket_adedi
-                        WHEN yon = 'GIRIS'
+                        WHEN yon='CIKIS'
                         THEN -paket_adedi
                         ELSE 0
                     END
@@ -370,16 +333,12 @@ def mamul_stok_hareketi_ekle(
                 0
             )
             FROM mamul_stok_hareketleri
-            WHERE paketleme_id = ?
+            WHERE paketleme_id=?
         """, (
             paketleme_id,
         )).fetchone()[0]
 
-        kalan = (
-            int(paketleme["paket_adedi"])
-            - int(sevk_cikis)
-            - int(hareket_net)
-        )
+        kalan = int(hareket_net) - int(sevk_cikis)
 
         if paket_adedi > kalan:
             raise ValueError(
@@ -412,3 +371,21 @@ def mamul_stok_hareketi_ekle(
             "%d.%m.%Y %H:%M:%S"
         ),
     ))
+
+
+def sevkiyat_hareketi_ekle(
+    conn,
+    paketleme_id,
+    hareket_tarihi,
+    paket_adedi,
+    aciklama=None,
+):
+    return mamul_stok_hareketi_ekle(
+        conn=conn,
+        paketleme_id=paketleme_id,
+        hareket_tarihi=hareket_tarihi,
+        hareket_tipi="SEVKIYAT",
+        yon="CIKIS",
+        paket_adedi=paket_adedi,
+        aciklama=aciklama,
+    )

@@ -12,6 +12,8 @@ from database.stock_engine import (
 from database.finished_stock_engine import (
     mamul_stok_ozeti,
     ambalaj_stok_toplami,
+    mamul_stok_hareketi_ekle,
+    sevkiyat_hareketi_ekle,
     sevkiyat_stok_dus,
 )
 
@@ -760,7 +762,30 @@ class RedboxOS(ctk.CTk):
                     f"Su: {su_parti:.3f} kg, "
                     f"Toplam: {hesaplanan_parti:.3f} kg, "
                     f"Teorik: {teorik_parti:.3f} kg"
+                )            
+            analiz = {}
+
+            kalemler = conn.execute("""
+                SELECT
+                    h.ad,
+                    rk.miktar_kg
+                FROM recete_kalemleri rk
+                JOIN hammaddeler h
+                  ON h.id = rk.hammadde_id
+                WHERE rk.recete_id = ?
+                ORDER BY h.id
+            """, (
+                recete["id"],
+            )).fetchall()
+
+            for row in kalemler:
+                analiz[row["ad"]] = (
+                    float(row["miktar_kg"]) * parti_sayisi
                 )
+
+            analiz["Proses Suyu"] = (
+                su_parti * parti_sayisi
+            )
 
             return {
                 "stoklu_parti_kg":
@@ -775,7 +800,9 @@ class RedboxOS(ctk.CTk):
                     su_parti * parti_sayisi,
                 "teorik_toplam_kg":
                     teorik_parti * parti_sayisi,
-            }
+                    "analiz": analiz,
+                }
+    
 
         finally:
             conn.close()
@@ -2205,6 +2232,14 @@ class RedboxOS(ctk.CTk):
                 text=f"{net:.3f} kg"
             )
 
+            analiz = denge.get("analiz", {})
+
+            for ad, lbl in self.analiz_labels.items():
+                miktar = analiz.get(ad, 0.0)
+                lbl.configure(
+                    text=f"{ad}: {miktar:.3f} kg"
+                )
+
         except ValueError:
             self.stoklu_hammadde_label.configure(
                 text="STOKLU HAMMADDE: HATALI DEĞER"
@@ -3030,6 +3065,19 @@ class RedboxOS(ctk.CTk):
                     )
                 ))
 
+                paketleme_id = conn.execute(
+                    "SELECT last_insert_rowid()"
+                ).fetchone()[0]
+
+                mamul_stok_hareketi_ekle(
+                    conn=conn,
+                    paketleme_id=paketleme_id,
+                    hareket_tarihi=tarih,
+                    hareket_tipi="PAKETLEME",
+                    yon="GIRIS",
+                    paket_adedi=adet,
+                )
+
                 conn.commit()
 
             except Exception:
@@ -3665,13 +3713,21 @@ class RedboxOS(ctk.CTk):
                     )
                 )).lastrowid
 
-                sevkiyat_stok_dus(
+                dagitim = sevkiyat_stok_dus(
                     conn=conn,
                     sevkiyat_id=sevkiyat_id,
                     uretim_id=stok["uretim_id"],
                     ambalaj_gram=stok["ambalaj_gram"],
                     paket_adedi=toplam_paket
                 )
+
+                for satir in dagitim:
+                    sevkiyat_hareketi_ekle(
+                        conn=conn,
+                        paketleme_id=satir["paketleme_id"],
+                        hareket_tarihi=tarih,
+                        paket_adedi=satir["paket_adedi"],
+                    )
 
                 conn.commit()
 
