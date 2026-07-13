@@ -37,6 +37,7 @@ from database.cleaning_engine import (
     get_due_cleaning_summary,
     complete_cleaning_task,
 )
+from ui.system import SystemPage
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -81,6 +82,7 @@ class RedboxOS(ctk.CTk):
             ("REÇETE", self.recete),
             ("PERSONEL", self.personel),
             ("TEMİZLİK", self.temizlik),
+            ("SİSTEM", self.sistem),
         ]
 
         for index, (text, command) in enumerate(menu, start=2):
@@ -8445,6 +8447,12 @@ class RedboxOS(ctk.CTk):
         finally:
             if conn is not None:
                 conn.close()
+
+
+
+
+    def sistem(self):
+        SystemPage(self).create()
 
 
 if __name__ == "__main__":
