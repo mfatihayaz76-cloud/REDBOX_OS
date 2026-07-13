@@ -12,6 +12,7 @@ class DashboardPage(ctk.CTkFrame):
         self,
         master,
         db=None,
+        quick_actions=None,
     ):
         super().__init__(
             master,
@@ -58,7 +59,8 @@ class DashboardPage(ctk.CTkFrame):
             pady=(10, 20)
         )
 
-        self.right.grid_rowconfigure(0, weight=1)
+        self.right.grid_columnconfigure(0, weight=1)
+        self.right.grid_rowconfigure(0, weight=3)
         self.right.grid_rowconfigure(1, weight=1)
 
         self.stock = CriticalStock(self.right)
@@ -70,7 +72,10 @@ class DashboardPage(ctk.CTkFrame):
             pady=(0, 10)
         )
 
-        self.actions = QuickActions(self.right)
+        self.actions = QuickActions(
+            self.right,
+            actions=quick_actions,
+        )
 
         self.actions.grid(
             row=1,

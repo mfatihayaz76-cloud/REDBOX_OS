@@ -15,39 +15,106 @@ class RecentActivity(ctk.CTkFrame):
             font=("Arial", 18, "bold")
         ).pack(
             anchor="w",
-            padx=15,
-            pady=(15, 10)
+            padx=18,
+            pady=(16, 10)
         )
 
-        self.box = ctk.CTkTextbox(
+        header = ctk.CTkFrame(
             self,
-            height=260
+            height=38,
+            corner_radius=6
+        )
+        header.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 5)
         )
 
-        self.box.pack(
+        header.grid_columnconfigure(0, weight=2)
+        header.grid_columnconfigure(1, weight=2)
+        header.grid_columnconfigure(2, weight=3)
+        header.grid_columnconfigure(3, weight=2)
+
+        for column, text in enumerate(
+            ("İŞLEM", "TARİH", "DETAY", "MİKTAR")
+        ):
+            ctk.CTkLabel(
+                header,
+                text=text,
+                font=("Arial", 12, "bold"),
+                anchor="w"
+            ).grid(
+                row=0,
+                column=column,
+                sticky="ew",
+                padx=10,
+                pady=10
+            )
+
+        self.rows_frame = ctk.CTkScrollableFrame(
+            self,
+            label_text="",
+            corner_radius=6
+        )
+        self.rows_frame.pack(
             fill="both",
             expand=True,
             padx=15,
             pady=(0, 15)
         )
 
-    def load(self, rows):
+        self.rows_frame.grid_columnconfigure(0, weight=1)
 
-        self.box.delete("1.0", "end")
+    def load(self, rows):
+        for widget in self.rows_frame.winfo_children():
+            widget.destroy()
 
         if not rows:
-            self.box.insert(
-                "end",
-                "Kayıt bulunamadı."
+            ctk.CTkLabel(
+                self.rows_frame,
+                text="Kayıt bulunamadı.",
+                font=("Arial", 13)
+            ).pack(
+                anchor="w",
+                padx=12,
+                pady=12
             )
             return
 
-        for row in rows:
-            self.box.insert(
-                "end",
-                row + "\n"
+        for index, text in enumerate(rows):
+            parts = [
+                part.strip()
+                for part in str(text).split("|")
+            ]
+
+            while len(parts) < 4:
+                parts.append("")
+
+            row = ctk.CTkFrame(
+                self.rows_frame,
+                corner_radius=4
+            )
+            row.pack(
+                fill="x",
+                padx=2,
+                pady=2
             )
 
-        self.box.configure(
-            state="disabled"
-        )
+            row.grid_columnconfigure(0, weight=2)
+            row.grid_columnconfigure(1, weight=2)
+            row.grid_columnconfigure(2, weight=3)
+            row.grid_columnconfigure(3, weight=2)
+
+            for column, value in enumerate(parts[:4]):
+                ctk.CTkLabel(
+                    row,
+                    text=value,
+                    font=("Arial", 12),
+                    anchor="w"
+                ).grid(
+                    row=0,
+                    column=column,
+                    sticky="ew",
+                    padx=10,
+                    pady=9
+                )
