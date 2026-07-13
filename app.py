@@ -1,7 +1,7 @@
 import tkinter as tk
 import customtkinter as ctk
 import subprocess
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from datetime import datetime
 
 from database.db import init_database, get_connection
@@ -356,10 +356,7 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             self.content,
-            text=(
-                "Canlı mamul ve hammadde "
-                "depo stok durumu"
-            ),
+            text="Canlı mamul ve hammadde depo stok durumu",
             font=("Arial", 15)
         ).pack(
             anchor="w",
@@ -367,10 +364,7 @@ class RedboxOS(ctk.CTk):
             pady=(0, 15)
         )
 
-        scroll = ctk.CTkScrollableFrame(
-            self.content
-        )
-
+        scroll = ctk.CTkScrollableFrame(self.content)
         scroll.pack(
             fill="both",
             expand=True,
@@ -378,157 +372,212 @@ class RedboxOS(ctk.CTk):
             pady=(0, 20)
         )
 
+        def section_title(text):
+            ctk.CTkLabel(
+                scroll,
+                text=text,
+                font=("Arial", 21, "bold")
+            ).pack(
+                anchor="w",
+                padx=10,
+                pady=(22, 10)
+            )
+
+        def summary_card(text):
+            frame = ctk.CTkFrame(
+                scroll,
+                corner_radius=8
+            )
+            frame.pack(
+                fill="x",
+                padx=10,
+                pady=(0, 10)
+            )
+
+            ctk.CTkLabel(
+                frame,
+                text=text,
+                font=("Arial", 16, "bold"),
+                anchor="w"
+            ).pack(
+                fill="x",
+                padx=18,
+                pady=14
+            )
+
+        def data_table(headers, rows, weights):
+            table = ctk.CTkFrame(
+                scroll,
+                corner_radius=8
+            )
+            table.pack(
+                fill="x",
+                padx=10,
+                pady=(0, 10)
+            )
+
+            style = ttk.Style()
+            style.theme_use("clam")
+            style.configure(
+                "Redbox.Treeview",
+                background="#2b2b2b",
+                fieldbackground="#2b2b2b",
+                foreground="#e5e7eb",
+                rowheight=38,
+                borderwidth=0,
+                font=("Arial", 12)
+            )
+            style.configure(
+                "Redbox.Treeview.Heading",
+                background="#343434",
+                foreground="#e5e7eb",
+                relief="flat",
+                font=("Arial", 12, "bold")
+            )
+            style.map(
+                "Redbox.Treeview",
+                background=[("selected", "#1f6aa5")],
+                foreground=[("selected", "#ffffff")]
+            )
+
+            columns = tuple(
+                f"column_{index}"
+                for index in range(len(headers))
+            )
+
+            tree = ttk.Treeview(
+                table,
+                columns=columns,
+                show="headings",
+                style="Redbox.Treeview",
+                height=max(1, len(rows)),
+                selectmode="browse"
+            )
+
+            for index, (
+                column,
+                header,
+                weight
+            ) in enumerate(
+                zip(columns, headers, weights)
+            ):
+                anchor = "e" if index > 0 else "w"
+
+                tree.heading(
+                    column,
+                    text=header,
+                    anchor=anchor
+                )
+                tree.column(
+                    column,
+                    anchor=anchor,
+                    width=weight * 55,
+                    minwidth=80,
+                    stretch=True
+                )
+
+            tree.tag_configure(
+                "even",
+                background="#292929"
+            )
+            tree.tag_configure(
+                "odd",
+                background="#303030"
+            )
+
+            if rows:
+                for row_index, values in enumerate(rows):
+                    tree.insert(
+                        "",
+                        "end",
+                        values=values,
+                        tags=(
+                            "even"
+                            if row_index % 2 == 0
+                            else "odd",
+                        )
+                    )
+            else:
+                empty_values = [
+                    "Gösterilecek aktif stok kaydı yok."
+                ] + [""] * (len(headers) - 1)
+
+                tree.insert(
+                    "",
+                    "end",
+                    values=empty_values,
+                    tags=("even",)
+                )
+
+            tree.pack(
+                fill="x",
+                expand=True,
+                padx=8,
+                pady=8
+            )
+
         mamul_rows = [
             row
             for row in mamul_stok_ozeti()
-            if int(
-                row["kalan_paket_adedi"]
-            ) > 0
+            if int(row["kalan_paket_adedi"]) > 0
         ]
-
-        ctk.CTkLabel(
-            scroll,
-            text="CANLI MAMUL STOK",
-            font=("Arial", 22, "bold")
-        ).pack(
-            anchor="w",
-            padx=10,
-            pady=(10, 10)
-        )
 
         mamul_toplam_kg = sum(
             float(row["kalan_kg"])
             for row in mamul_rows
         )
-
         mamul_toplam_paket = sum(
             int(row["kalan_paket_adedi"])
             for row in mamul_rows
         )
 
-        mamul_ozet = ctk.CTkFrame(
-            scroll
+        section_title("CANLI MAMUL STOK")
+        summary_card(
+            f"TOPLAM MAMUL STOK: {mamul_toplam_kg:.3f} KG"
+            f"   |   TOPLAM PAKET: {mamul_toplam_paket}"
         )
 
-        mamul_ozet.pack(
-            fill="x",
-            padx=10,
-            pady=(0, 10)
-        )
-
-        ctk.CTkLabel(
-            mamul_ozet,
-            text=(
-                f"TOPLAM MAMUL STOK: "
-                f"{mamul_toplam_kg:.3f} KG"
-                f"   |   "
-                f"{mamul_toplam_paket} PAKET"
+        data_table(
+            (
+                "ÜRÜN LOTU",
+                "AMBALAJ",
+                "PAKET",
+                "TAM KOLİ",
+                "AÇIK PAKET",
+                "KALAN KG",
             ),
-            font=("Arial", 17, "bold")
-        ).pack(
-            anchor="w",
-            padx=20,
-            pady=15
-        )
-
-        if mamul_rows:
-            for row in mamul_rows:
-                kart = ctk.CTkFrame(
-                    scroll
+            [
+                (
+                    row["urun_lot_no"],
+                    f'{row["ambalaj_gram"]} G',
+                    row["kalan_paket_adedi"],
+                    row["tam_koli"],
+                    row["acik_paket"],
+                    f'{float(row["kalan_kg"]):.3f}',
                 )
-
-                kart.pack(
-                    fill="x",
-                    padx=10,
-                    pady=5
-                )
-
-                ctk.CTkLabel(
-                    kart,
-                    text=(
-                        f'LOT: {row["urun_lot_no"]}'
-                        f'   |   '
-                        f'{row["ambalaj_gram"]} G'
-                        f'   |   '
-                        f'PAKET: {row["kalan_paket_adedi"]}'
-                        f'   |   '
-                        f'TAM KOLİ: {row["tam_koli"]}'
-                        f'   |   '
-                        f'AÇIK PAKET: {row["acik_paket"]}'
-                        f'   |   '
-                        f'KALAN: {row["kalan_kg"]:.3f} KG'
-                    ),
-                    justify="left",
-                    font=("Arial", 14)
-                ).pack(
-                    anchor="w",
-                    padx=20,
-                    pady=15
-                )
-
-        else:
-            ctk.CTkLabel(
-                scroll,
-                text="Aktif mamul stok kaydı yok.",
-                font=("Arial", 14)
-            ).pack(
-                anchor="w",
-                padx=15,
-                pady=10
-            )
-
-        ctk.CTkLabel(
-            scroll,
-            text="CANLI HAMMADDE STOK",
-            font=("Arial", 22, "bold")
-        ).pack(
-            anchor="w",
-            padx=10,
-            pady=(30, 10)
+                for row in mamul_rows
+            ],
+            (3, 2, 2, 2, 2, 2)
         )
 
         hammadde_rows = hammadde_stok_ozeti()
-
-        hammadde_toplam = (
-            hammadde_toplam_stok_kg()
-        )
-
+        hammadde_toplam = hammadde_toplam_stok_kg()
         pozitif_hammadde = sum(
             1
             for row in hammadde_rows
             if float(row["kalan_kg"]) > 0.000001
         )
 
-        hm_ozet = ctk.CTkFrame(
-            scroll
+        section_title("CANLI HAMMADDE STOK")
+        summary_card(
+            f"TOPLAM HAMMADDE STOK: {hammadde_toplam:.3f} KG"
+            f"   |   POZİTİF STOK KALEMİ: {pozitif_hammadde}"
         )
 
-        hm_ozet.pack(
-            fill="x",
-            padx=10,
-            pady=(0, 10)
-        )
-
-        ctk.CTkLabel(
-            hm_ozet,
-            text=(
-                f"TOPLAM HAMMADDE STOK: "
-                f"{hammadde_toplam:.3f} KG"
-                f"   |   "
-                f"POZİTİF STOK KALEMİ: "
-                f"{pozitif_hammadde}"
-            ),
-            font=("Arial", 17, "bold")
-        ).pack(
-            anchor="w",
-            padx=20,
-            pady=15
-        )
+        hammadde_table_rows = []
 
         for row in hammadde_rows:
-            kalan = float(
-                row["kalan_kg"]
-            )
+            kalan = float(row["kalan_kg"])
 
             if kalan > 0.000001:
                 durum = "STOK VAR"
@@ -537,97 +586,54 @@ class RedboxOS(ctk.CTk):
             else:
                 durum = "STOK YOK"
 
-            kart = ctk.CTkFrame(
-                scroll
+            hammadde_table_rows.append(
+                (
+                    row["hammadde"],
+                    f'{float(row["kabul_kg"]):.3f}',
+                    f'{float(row["tuketim_kg"]):.3f}',
+                    f"{kalan:.3f}",
+                    durum,
+                )
             )
 
-            kart.pack(
-                fill="x",
-                padx=10,
-                pady=5
-            )
-
-            ctk.CTkLabel(
-                kart,
-                text=(
-                    f'{row["hammadde"]}'
-                    f'   |   '
-                    f'KABUL: {row["kabul_kg"]:.3f} KG'
-                    f'   |   '
-                    f'TÜKETİM: {row["tuketim_kg"]:.3f} KG'
-                    f'   |   '
-                    f'STOK: {kalan:.3f} KG'
-                    f'   |   '
-                    f'{durum}'
-                ),
-                justify="left",
-                font=("Arial", 14)
-            ).pack(
-                anchor="w",
-                padx=20,
-                pady=15
-            )
-
-        ctk.CTkLabel(
-            scroll,
-            text="HAMMADDE LOT BAZLI STOK",
-            font=("Arial", 22, "bold")
-        ).pack(
-            anchor="w",
-            padx=10,
-            pady=(30, 10)
+        data_table(
+            (
+                "HAMMADDE",
+                "KABUL KG",
+                "TÜKETİM KG",
+                "KALAN KG",
+                "DURUM",
+            ),
+            hammadde_table_rows,
+            (4, 2, 2, 2, 2)
         )
 
         lot_rows = hammadde_lot_stoklari(
             sadece_pozitif=True
         )
 
-        if lot_rows:
-            for row in lot_rows:
-                kart = ctk.CTkFrame(
-                    scroll
-                )
+        section_title("HAMMADDE LOT BAZLI STOK")
 
-                kart.pack(
-                    fill="x",
-                    padx=10,
-                    pady=5
+        data_table(
+            (
+                "HAMMADDE",
+                "TEDARİKÇİ LOTU",
+                "KABUL KG",
+                "TÜKETİM KG",
+                "KALAN KG",
+            ),
+            [
+                (
+                    row["hammadde"],
+                    row["tedarikci_lot_no"],
+                    f'{float(row["kabul_kg"]):.3f}',
+                    f'{float(row["tuketim_kg"]):.3f}',
+                    f'{float(row["kalan_kg"]):.3f}',
                 )
-
-                ctk.CTkLabel(
-                    kart,
-                    text=(
-                        f'{row["hammadde"]}'
-                        f'   |   '
-                        f'LOT: {row["tedarikci_lot_no"]}'
-                        f'   |   '
-                        f'KABUL: {row["kabul_kg"]:.3f} KG'
-                        f'   |   '
-                        f'TÜKETİM: {row["tuketim_kg"]:.3f} KG'
-                        f'   |   '
-                        f'KALAN: {row["kalan_kg"]:.3f} KG'
-                    ),
-                    justify="left",
-                    font=("Arial", 14)
-                ).pack(
-                    anchor="w",
-                    padx=20,
-                    pady=15
-                )
-
-        else:
-            ctk.CTkLabel(
-                scroll,
-                text=(
-                    "Pozitif stoklu hammadde "
-                    "lotu bulunmuyor."
-                ),
-                font=("Arial", 14)
-            ).pack(
-                anchor="w",
-                padx=15,
-                pady=10
-            )
+                for row in lot_rows
+            ],
+            (4, 3, 2, 2, 2)
+        )
 
     def depo_kabul(self):
         self.show_page(
