@@ -152,6 +152,9 @@ def hammadde_stok_ozeti():
             ) tuketim
                 ON tuketim.hammadde_id = h.id
 
+            WHERE
+                h.aktif = 1
+
             ORDER BY
                 h.id
             """

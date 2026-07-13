@@ -25,6 +25,7 @@ from database.report_engine import (
     paketleme_pdf_olustur,
     sevkiyat_pdf_olustur,
     temizlik_pdf_olustur,
+    stok_pdf_olustur,
 )
 
 from database.raw_material_stock_engine import (
@@ -418,6 +419,27 @@ class RedboxOS(ctk.CTk):
             pady=(0, 15)
         )
 
+        stock_actions = ctk.CTkFrame(
+            self.content,
+            fg_color="transparent"
+        )
+        stock_actions.pack(
+            fill="x",
+            padx=25,
+            pady=(0, 10)
+        )
+
+        ctk.CTkButton(
+            stock_actions,
+            text="GENEL STOK PDF",
+            command=self.genel_stok_pdf_raporu,
+            width=170,
+            height=40,
+            font=("Arial", 13, "bold")
+        ).pack(
+            side="right"
+        )
+
         scroll = ctk.CTkScrollableFrame(self.content)
         scroll.pack(
             fill="both",
@@ -688,6 +710,43 @@ class RedboxOS(ctk.CTk):
             ],
             (4, 3, 2, 2, 2)
         )
+
+    def genel_stok_pdf_raporu(self):
+        conn = None
+
+        try:
+            conn = get_connection()
+
+            pdf = stok_pdf_olustur(
+                conn
+            )
+
+            subprocess.run(
+                ["open", "-R", str(pdf.resolve())],
+                check=False
+            )
+
+            messagebox.showinfo(
+                "REDBOX OS",
+                (
+                    "Genel stok PDF raporu "
+                    "başarıyla oluşturuldu.\n\n"
+                    f"Dosya:\n{pdf}"
+                )
+            )
+
+        except Exception as hata:
+            messagebox.showerror(
+                "Genel Stok PDF Hatası",
+                (
+                    "Genel stok PDF raporu "
+                    f"oluşturulamadı:\n{hata}"
+                )
+            )
+
+        finally:
+            if conn is not None:
+                conn.close()
 
     def depo_kabul(self):
         self.show_page(

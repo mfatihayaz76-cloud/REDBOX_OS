@@ -1,4 +1,10 @@
 from database.cleaning_engine import get_cleaning_report_dataset
+from database.finished_stock_engine import mamul_stok_ozeti
+from database.raw_material_stock_engine import (
+    hammadde_stok_ozeti,
+    hammadde_lot_stoklari,
+    hammadde_toplam_stok_kg,
+)
 from collections import Counter
 from pathlib import Path
 from datetime import datetime
@@ -442,6 +448,180 @@ def pdf_build(doc, story):
         onLaterPages=pdf_sayfa_altligi,
     )
 
+
+
+def stok_pdf_olustur(conn):
+    mamul_rows = [
+        row
+        for row in mamul_stok_ozeti(conn)
+        if int(row["kalan_paket_adedi"]) > 0
+    ]
+
+    hammadde_rows = hammadde_stok_ozeti()
+
+    ambalaj_ozeti = {
+        500: {
+            "koli_ici": 32,
+            "paket": 0,
+            "kg": 0.0,
+        },
+        2500: {
+            "koli_ici": 10,
+            "paket": 0,
+            "kg": 0.0,
+        },
+    }
+
+    for row in mamul_rows:
+        gram = int(row["ambalaj_gram"])
+
+        if gram not in ambalaj_ozeti:
+            continue
+
+        ambalaj_ozeti[gram]["paket"] += int(
+            row["kalan_paket_adedi"]
+        )
+        ambalaj_ozeti[gram]["kg"] += float(
+            row["kalan_kg"]
+        )
+
+    mamul_pdf_rows = []
+
+    for gram in (500, 2500):
+        item = ambalaj_ozeti[gram]
+        paket = item["paket"]
+        koli_ici = item["koli_ici"]
+
+        mamul_pdf_rows.append(
+            (
+                (
+                    "500 g"
+                    if gram == 500
+                    else "2.5 kg"
+                ),
+                koli_ici,
+                paket,
+                paket // koli_ici,
+                paket % koli_ici,
+                f'{item["kg"]:.3f}',
+            )
+        )
+
+    mamul_toplam_kg = sum(
+        item["kg"]
+        for item in ambalaj_ozeti.values()
+    )
+    mamul_toplam_paket = sum(
+        item["paket"]
+        for item in ambalaj_ozeti.values()
+    )
+    hammadde_toplam_kg = sum(
+        float(row["kalan_kg"])
+        for row in hammadde_rows
+    )
+
+    dosya_yolu = pdf_yolu(
+        "GENEL_STOK"
+    )
+    doc = pdf_dokuman_olustur(
+        dosya_yolu
+    )
+    story = []
+
+    pdf_rapor_basligi(
+        story,
+        "GENEL STOK DURUM RAPORU",
+        "MAMUL VE HAMMADDE DEPO ÖZETİ"
+    )
+
+    pdf_bolum_basligi(
+        story,
+        "1. MAMUL STOK DURUMU"
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Toplam Mamul Stok",
+        f"{mamul_toplam_kg:.3f} kg"
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Toplam Mamul Paket",
+        mamul_toplam_paket
+    )
+
+    pdf_tablo(
+        story,
+        (
+            "Ambalaj",
+            "Paket / Koli",
+            "Toplam Paket",
+            "Tam Koli",
+            "Açık Paket",
+            "Toplam kg",
+        ),
+        mamul_pdf_rows,
+        (80, 80, 85, 75, 80, 80)
+    )
+
+    pdf_bolum_basligi(
+        story,
+        "2. HAMMADDE STOK DURUMU"
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Toplam Hammadde Stok",
+        f"{hammadde_toplam_kg:.3f} kg"
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Hammadde Kalem Sayısı",
+        len(hammadde_rows)
+    )
+
+    pdf_tablo(
+        story,
+        (
+            "Hammadde",
+            "Stok Miktarı",
+            "Durum",
+        ),
+        [
+            (
+                row["hammadde"],
+                (
+                    f'{float(row["kalan_kg"]):.3f} kg'
+                    if abs(float(row["kalan_kg"])) >= 1.0
+                    else (
+                        f'{float(row["kalan_kg"]) * 1000:.0f} g'
+                    )
+                ),
+                (
+                    "STOK VAR"
+                    if float(row["kalan_kg"]) > 0.000001
+                    else (
+                        "NEGATİF STOK"
+                        if float(row["kalan_kg"]) < -0.000001
+                        else "STOK YOK"
+                    )
+                ),
+            )
+            for row in hammadde_rows
+        ],
+        (250, 130, 120)
+    )
+
+    pdf_bilgi_satiri(
+        story,
+        "Hazırlayan",
+        "Fatih Ayaz"
+    )
+
+    pdf_build(
+        doc,
+        story
+    )
+
+    return dosya_yolu
 
 
 def hammadde_kabul_pdf_olustur(conn, depo_kabul_id):
