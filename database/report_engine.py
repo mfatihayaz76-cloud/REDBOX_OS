@@ -2314,3 +2314,103 @@ def temizlik_pdf_olustur(
     )
 
     return dosya
+
+
+
+def siparis_hesaplama_pdf_olustur(plan):
+    dosya = pdf_yolu("SIPARIS_HESAPLAMA")
+    doc = pdf_dokuman_olustur(dosya)
+    story = []
+
+    pdf_rapor_basligi(
+        story,
+        "SİPARİŞ ÜRETİM PLANLAMA RAPORU",
+        "YALNIZCA PLANLAMA — KAYIT OLUŞTURMAZ"
+    )
+
+    pdf_bolum_basligi(story, "1. PLANLAMA SONUCU")
+    pdf_bilgi_satiri(story, "Durum", plan["status"])
+    pdf_bilgi_satiri(
+        story,
+        "Sipariş Toplamı",
+        f'{plan["total_order_kg"]:.3f} kg'
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Mamul Stoktan Karşılanan",
+        f'{plan["total_allocated_kg"]:.3f} kg'
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Üretilecek Miktar",
+        f'{plan["production_required_kg"]:.3f} kg'
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Gerekli Parti Sayısı",
+        plan["batch_count"]
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Teorik Üretim",
+        f'{plan["theoretical_production_kg"]:.3f} kg'
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Tahmini Fazla",
+        f'{plan["estimated_surplus_kg"]:.3f} kg'
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Proses Suyu",
+        f'{plan["process_water_required_kg"]:.3f} kg'
+    )
+
+    pdf_bolum_basligi(story, "2. SİPARİŞ DAĞILIMI")
+    pdf_tablo(
+        story,
+        (
+            "Ambalaj",
+            "Paket Adedi",
+            "Sipariş kg",
+            "Stoktan kg",
+            "Üretim kg",
+        ),
+        [
+            (
+                row["package"],
+                row["ordered_packages"],
+                f'{row["order_kg"]:.3f}',
+                f'{row["allocated_kg"]:.3f}',
+                f'{row["production_kg"]:.3f}',
+            )
+            for row in plan["order_lines"]
+        ],
+        (90, 90, 95, 95, 95)
+    )
+
+    pdf_bolum_basligi(story, "3. HAMMADDE GEREKSİNİMİ")
+    pdf_tablo(
+        story,
+        (
+            "Hammadde",
+            "Gereken kg",
+            "Mevcut kg",
+            "Eksik kg",
+            "Durum",
+        ),
+        [
+            (
+                row["name"],
+                f'{row["required_kg"]:.3f}',
+                f'{row["available_kg"]:.3f}',
+                f'{row["shortage_kg"]:.3f}',
+                "YETERLİ" if row["sufficient"] else "EKSİK",
+            )
+            for row in plan["raw_materials"]
+        ],
+        (210, 75, 75, 70, 70)
+    )
+
+    pdf_build(doc, story)
+    return dosya

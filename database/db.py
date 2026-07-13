@@ -46,6 +46,30 @@ def init_database():
         FOREIGN KEY (hammadde_id) REFERENCES hammaddeler(id)
     );
 
+
+    CREATE TABLE IF NOT EXISTS hammadde_stok_hareketleri (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hareket_tarihi TEXT NOT NULL,
+        depo_kabul_id INTEGER NOT NULL,
+        hareket_tipi TEXT NOT NULL CHECK(
+            hareket_tipi IN (
+                'IADE',
+                'IMHA',
+                'SAYIM_DUZELTME'
+            )
+        ),
+        yon TEXT NOT NULL CHECK(
+            yon IN ('GIRIS', 'CIKIS')
+        ),
+        miktar_kg REAL NOT NULL CHECK(
+            miktar_kg > 0
+        ),
+        aciklama TEXT,
+        kayit_zamani TEXT NOT NULL,
+        FOREIGN KEY (depo_kabul_id)
+            REFERENCES depo_kabul(id)
+    );
+
     CREATE TABLE IF NOT EXISTS uretim (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         uretim_tarihi TEXT NOT NULL,

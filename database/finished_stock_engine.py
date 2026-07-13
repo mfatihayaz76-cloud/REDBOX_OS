@@ -26,7 +26,28 @@ def mamul_stok_lotlari(conn=None):
                           AND px.ambalaj_gram = p.ambalaj_gram
                     ),
                     0
-                ) AS cikis_paket_adedi
+                ) AS cikis_paket_adedi,
+                COALESCE(
+                    (
+                        SELECT SUM(
+                            CASE
+                                WHEN msh.yon = 'GIRIS'
+                                THEN msh.paket_adedi
+                                WHEN msh.yon = 'CIKIS'
+                                THEN -msh.paket_adedi
+                                ELSE 0
+                            END
+                        )
+                        FROM mamul_stok_hareketleri msh
+                        WHERE msh.paketleme_id = p.id
+                          AND msh.hareket_tipi IN (
+                              'IADE',
+                              'IMHA',
+                              'SAYIM_DUZELTME'
+                          )
+                    ),
+                    0
+                ) AS duzeltme_net_paket
             FROM paketleme p
             JOIN uretim u
               ON u.id = p.uretim_id
@@ -53,7 +74,10 @@ def mamul_stok_ozeti(conn=None):
     for row in satirlar:
         giris = int(row["giris_paket_adedi"])
         cikis = int(row["cikis_paket_adedi"])
-        kalan = giris - cikis
+        duzeltme_net = int(
+            row["duzeltme_net_paket"]
+        )
+        kalan = giris - cikis + duzeltme_net
 
         if kalan < 0:
             raise RuntimeError(

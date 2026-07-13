@@ -41,6 +41,7 @@ from database.cleaning_engine import (
 from ui.system import SystemPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.controllers.dashboard_controller import DashboardController
+from ui.order_calculator import OrderCalculatorWindow
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -229,6 +230,7 @@ class RedboxOS(ctk.CTk):
                 ("HAMMADDE STOK", self.stok),
                 ("DEPO KABUL", self.depo_kabul),
                 ("YENİ ÜRETİM", self.uretim),
+                ("SİPARİŞ HESAPLA", self.siparis_hesapla),
             ],
         )
         dashboard.pack(
@@ -747,6 +749,9 @@ class RedboxOS(ctk.CTk):
         finally:
             if conn is not None:
                 conn.close()
+
+    def siparis_hesapla(self):
+        OrderCalculatorWindow(self)
 
     def depo_kabul(self):
         self.show_page(
