@@ -56,8 +56,18 @@ class RedboxOS(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.sidebar = ctk.CTkFrame(self, width=245, corner_radius=0)
-        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar_visible = True
+
+        self.sidebar = ctk.CTkFrame(
+            self,
+            width=245,
+            corner_radius=0
+        )
+        self.sidebar.grid(
+            row=0,
+            column=0,
+            sticky="nsew"
+        )
         self.sidebar.grid_rowconfigure(13, weight=1)
 
         ctk.CTkLabel(
@@ -104,8 +114,30 @@ class RedboxOS(ctk.CTk):
             font=("Arial", 11)
         ).grid(row=14, column=0, padx=20, pady=20)
 
-        self.content = ctk.CTkFrame(self, corner_radius=0)
-        self.content.grid(row=0, column=1, sticky="nsew")
+        self.content = ctk.CTkFrame(
+            self,
+            corner_radius=0
+        )
+        self.content.grid(
+            row=0,
+            column=1,
+            sticky="nsew"
+        )
+
+        self.sidebar_toggle = ctk.CTkButton(
+            self,
+            text="◀",
+            width=34,
+            height=30,
+            corner_radius=6,
+            command=self.toggle_sidebar,
+            font=("Arial", 14, "bold")
+        )
+        self.sidebar_toggle.place(
+            x=205,
+            y=8
+        )
+        self.sidebar_toggle.lift()
 
         self._context_menu_widget = None
         self._context_menu = tk.Menu(self, tearoff=0)
@@ -141,6 +173,28 @@ class RedboxOS(ctk.CTk):
         )
 
         self.ana_sayfa()
+
+    def toggle_sidebar(self):
+        if self.sidebar_visible:
+            self.sidebar.grid_remove()
+            self.sidebar_visible = False
+            self.sidebar_toggle.configure(text="☰")
+            self.sidebar_toggle.place(
+                relx=1.0,
+                x=-45,
+                y=8
+            )
+        else:
+            self.sidebar.grid()
+            self.sidebar_visible = True
+            self.sidebar_toggle.configure(text="◀")
+            self.sidebar_toggle.place(
+                relx=0.0,
+                x=205,
+                y=8
+            )
+
+        self.sidebar_toggle.lift()
 
     def clear_content(self):
         for widget in self.content.winfo_children():
@@ -764,7 +818,10 @@ class RedboxOS(ctk.CTk):
             font=("Arial", 18, "bold")
         ).pack(anchor="w", padx=20, pady=(20, 10))
 
-        self.kabul_liste_frame = ctk.CTkScrollableFrame(liste)
+        self.kabul_liste_frame = ctk.CTkFrame(
+            liste,
+            corner_radius=8
+        )
         self.kabul_liste_frame.pack(
             fill="both",
             expand=True,
@@ -1017,64 +1074,193 @@ class RedboxOS(ctk.CTk):
             widget.destroy()
 
         conn = get_connection()
-        kayitlar = conn.execute("""
-            SELECT
-                dk.id,
-                dk.kabul_tarihi,
-                h.ad AS hammadde,
-                dk.tedarikci,
-                dk.tedarikci_lot_no,
-                dk.miktar_kg
-            FROM depo_kabul dk
-            JOIN hammaddeler h ON h.id = dk.hammadde_id
-            ORDER BY dk.id DESC
-            LIMIT 100
-        """).fetchall()
-        conn.close()
 
-        if not kayitlar:
-            ctk.CTkLabel(
-                self.kabul_liste_frame,
-                text="Henüz depo kabul kaydı bulunmuyor."
-            ).pack(pady=30)
+        try:
+            kayitlar = conn.execute("""
+                SELECT
+                    dk.id,
+                    dk.kabul_tarihi,
+                    h.ad AS hammadde,
+                    dk.tedarikci,
+                    dk.tedarikci_lot_no,
+                    dk.miktar_kg
+                FROM depo_kabul dk
+                JOIN hammaddeler h
+                  ON h.id = dk.hammadde_id
+                ORDER BY dk.id DESC
+                LIMIT 100
+            """).fetchall()
+        finally:
+            conn.close()
+
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Redbox.Treeview",
+            background="#2b2b2b",
+            fieldbackground="#2b2b2b",
+            foreground="#e5e7eb",
+            rowheight=38,
+            borderwidth=0,
+            font=("Arial", 12)
+        )
+        style.configure(
+            "Redbox.Treeview.Heading",
+            background="#343434",
+            foreground="#e5e7eb",
+            relief="flat",
+            font=("Arial", 12, "bold")
+        )
+        style.map(
+            "Redbox.Treeview",
+            background=[("selected", "#1f6aa5")],
+            foreground=[("selected", "#ffffff")]
+        )
+
+        toolbar = ctk.CTkFrame(
+            self.kabul_liste_frame,
+            fg_color="transparent"
+        )
+        toolbar.pack(
+            fill="x",
+            padx=8,
+            pady=(8, 4)
+        )
+
+        self.kabul_kayit_sayisi = ctk.CTkLabel(
+            toolbar,
+            text=f"TOPLAM KAYIT: {len(kayitlar)}",
+            font=("Arial", 12, "bold")
+        )
+        self.kabul_kayit_sayisi.pack(
+            side="left",
+            padx=5
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="SEÇİLİ KAYDI SİL",
+            width=145,
+            height=34,
+            fg_color="gray35",
+            command=self.depo_kabul_secili_sil
+        ).pack(
+            side="right",
+            padx=5
+        )
+
+        tree_area = ctk.CTkFrame(
+            self.kabul_liste_frame,
+            fg_color="transparent"
+        )
+        tree_area.pack(
+            fill="both",
+            expand=True,
+            padx=8,
+            pady=(4, 8)
+        )
+        tree_area.grid_rowconfigure(0, weight=1)
+        tree_area.grid_columnconfigure(0, weight=1)
+
+        columns = (
+            "tarih",
+            "hammadde",
+            "tedarikci",
+            "lot",
+            "miktar",
+        )
+
+        self.kabul_tree = ttk.Treeview(
+            tree_area,
+            columns=columns,
+            show="headings",
+            style="Redbox.Treeview",
+            selectmode="browse"
+        )
+
+        headings = (
+            ("tarih", "TARİH", 95, "w"),
+            ("hammadde", "HAMMADDE", 145, "w"),
+            ("tedarikci", "TEDARİKÇİ", 130, "w"),
+            ("lot", "LOT NO", 125, "w"),
+            ("miktar", "KG", 85, "e"),
+        )
+
+        for column, title, width, anchor in headings:
+            self.kabul_tree.heading(
+                column,
+                text=title,
+                anchor=anchor
+            )
+            self.kabul_tree.column(
+                column,
+                width=width,
+                minwidth=65,
+                anchor=anchor,
+                stretch=True
+            )
+
+        self.kabul_tree.tag_configure(
+            "even",
+            background="#292929"
+        )
+        self.kabul_tree.tag_configure(
+            "odd",
+            background="#303030"
+        )
+
+        for index, kayit in enumerate(kayitlar):
+            self.kabul_tree.insert(
+                "",
+                "end",
+                iid=str(kayit["id"]),
+                values=(
+                    kayit["kabul_tarihi"],
+                    kayit["hammadde"],
+                    kayit["tedarikci"] or "-",
+                    kayit["tedarikci_lot_no"],
+                    f'{float(kayit["miktar_kg"]):.3f}',
+                ),
+                tags=(
+                    "even"
+                    if index % 2 == 0
+                    else "odd",
+                )
+            )
+
+        scrollbar = ttk.Scrollbar(
+            tree_area,
+            orient="vertical",
+            command=self.kabul_tree.yview
+        )
+        self.kabul_tree.configure(
+            yscrollcommand=scrollbar.set
+        )
+
+        self.kabul_tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew"
+        )
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns"
+        )
+
+    def depo_kabul_secili_sil(self):
+        secim = self.kabul_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Kayıt Seçilmedi",
+                "Silmek için tablodan bir kayıt seçin."
+            )
             return
 
-        for kayit in kayitlar:
-            satir = ctk.CTkFrame(self.kabul_liste_frame)
-            satir.pack(fill="x", padx=5, pady=4)
-
-            bilgi = (
-                f'{kayit["kabul_tarihi"]}  •  '
-                f'{kayit["hammadde"]}\n'
-                f'Lot: {kayit["tedarikci_lot_no"]}  •  '
-                f'{kayit["miktar_kg"]:.3f} kg'
-            )
-
-            if kayit["tedarikci"]:
-                bilgi += f'  •  {kayit["tedarikci"]}'
-
-            ctk.CTkLabel(
-                satir,
-                text=bilgi,
-                justify="left",
-                anchor="w"
-            ).pack(
-                side="left",
-                fill="x",
-                expand=True,
-                padx=12,
-                pady=10
-            )
-
-            ctk.CTkButton(
-                satir,
-                text="SİL",
-                width=65,
-                fg_color="gray35",
-                command=lambda kayit_id=kayit["id"]:
-                    self.depo_kabul_sil(kayit_id)
-            ).pack(side="right", padx=(5, 10))
-
+        self.depo_kabul_sil(
+            int(secim[0])
+        )
 
     def depo_kabul_sil(self, kayit_id):
         cevap = messagebox.askyesno(
