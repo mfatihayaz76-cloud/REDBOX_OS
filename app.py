@@ -1,6 +1,7 @@
 import tkinter as tk
 import customtkinter as ctk
 import subprocess
+import sys
 from tkinter import messagebox, ttk
 from datetime import datetime
 
@@ -60,6 +61,15 @@ class RedboxOS(ctk.CTk):
         )
         self.title("REDBOX OS")
         self.geometry("1380x820")
+
+        if sys.platform == "darwin":
+            try:
+                self.tk.createcommand(
+                    "::tk::mac::ReopenApplication",
+                    self._macos_dock_reopen,
+                )
+            except Exception:
+                pass
         self.minsize(1180, 700)
 
         self.grid_columnconfigure(1, weight=1)
@@ -203,6 +213,16 @@ class RedboxOS(ctk.CTk):
         )
 
         self.ana_sayfa()
+
+    def _macos_dock_reopen(self):
+        self.deiconify()
+        self.after(
+            50,
+            lambda: (
+                self.lift(),
+                self.focus_force(),
+            ),
+        )
 
     def formul_erisim_kontrolu(self):
         if self.formul_yetkili:
@@ -797,81 +817,313 @@ class RedboxOS(ctk.CTk):
     def depo_kabul(self):
         self.show_page(
             "DEPO KABUL",
-            "Hammadde kabul ve tedarikçi lot kayıtları"
+            "Hammadde kabul, tedarikçi ve lot yönetimi",
         )
 
-        ana_frame = ctk.CTkFrame(self.content)
-        ana_frame.pack(fill="both", expand=True, padx=40, pady=(0, 30))
+        main = ctk.CTkFrame(
+            self.content,
+            fg_color="transparent",
+        )
+        main.pack(
+            fill="both",
+            expand=True,
+            padx=32,
+            pady=(0, 25),
+        )
+
+        summary = ctk.CTkFrame(
+            main,
+            fg_color="transparent",
+        )
+        summary.pack(
+            fill="x",
+            pady=(5, 12),
+        )
+
+        self.depo_ozet_labels = {}
+
+        cards = (
+            ("kayit", "TOPLAM KABUL", "0"),
+            ("miktar", "TOPLAM MİKTAR", "0.000 kg"),
+            ("hammadde", "AKTİF HAMMADDE", "0"),
+            ("son", "SON KABUL", "-"),
+        )
+
+        for key, title, value in cards:
+            card = ctk.CTkFrame(
+                summary,
+                height=92,
+                corner_radius=12,
+            )
+            card.pack(
+                side="left",
+                fill="x",
+                expand=True,
+                padx=6,
+            )
+            card.pack_propagate(False)
+
+            ctk.CTkLabel(
+                card,
+                text=title,
+                font=("Arial", 11, "bold"),
+                text_color="#9CA3AF",
+            ).pack(
+                anchor="w",
+                padx=18,
+                pady=(16, 4),
+            )
+
+            label = ctk.CTkLabel(
+                card,
+                text=value,
+                font=("Arial", 22, "bold"),
+            )
+            label.pack(
+                anchor="w",
+                padx=18,
+            )
+            self.depo_ozet_labels[key] = label
+
+        toolbar = ctk.CTkFrame(
+            main,
+            corner_radius=10,
+        )
+        toolbar.pack(
+            fill="x",
+            pady=(0, 10),
+        )
+
+        self.depo_arama = ctk.CTkEntry(
+            toolbar,
+            width=270,
+            height=38,
+            placeholder_text=(
+                "Hammadde, tedarikçi veya lot ara..."
+            ),
+        )
+        self.depo_arama.pack(
+            side="left",
+            padx=(12, 6),
+            pady=12,
+        )
+        self.depo_arama.bind(
+            "<KeyRelease>",
+            lambda _event: self.depo_kabul_listele(),
+        )
+
+        conn = get_connection()
+        try:
+            hammadde_rows = conn.execute("""
+                SELECT ad
+                FROM hammaddeler
+                WHERE aktif = 1
+                ORDER BY id
+            """).fetchall()
+        finally:
+            conn.close()
+
+        hammadde_values = [
+            "TÜM HAMMADDELER",
+            *[row["ad"] for row in hammadde_rows],
+        ]
+
+        self.depo_hammadde_filtre = ctk.CTkOptionMenu(
+            toolbar,
+            values=hammadde_values,
+            width=190,
+            height=38,
+            command=lambda _value: self.depo_kabul_listele(),
+        )
+        self.depo_hammadde_filtre.set("TÜM HAMMADDELER")
+        self.depo_hammadde_filtre.pack(
+            side="left",
+            padx=6,
+            pady=12,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="FİLTREYİ TEMİZLE",
+            width=135,
+            height=38,
+            fg_color="#4B5563",
+            command=self.depo_kabul_filtre_temizle,
+        ).pack(
+            side="left",
+            padx=6,
+            pady=12,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="+ YENİ DEPO KABUL",
+            width=175,
+            height=38,
+            font=("Arial", 12, "bold"),
+            command=self.depo_kabul_formu_ac,
+        ).pack(
+            side="right",
+            padx=12,
+            pady=12,
+        )
+
+        self.kabul_liste_frame = ctk.CTkFrame(
+            main,
+            corner_radius=10,
+        )
+        self.kabul_liste_frame.pack(
+            fill="both",
+            expand=True,
+        )
+
+        self.depo_kabul_ozet_guncelle()
+        self.depo_kabul_listele()
+
+    def depo_kabul_ozet_guncelle(self):
+        conn = get_connection()
+        try:
+            row = conn.execute("""
+                SELECT
+                    COUNT(*) AS kayit_sayisi,
+                    COALESCE(SUM(miktar_kg), 0) AS toplam_kg,
+                    COUNT(DISTINCT hammadde_id) AS hammadde_sayisi
+                FROM depo_kabul
+                WHERE kabul_durumu = 'KABUL'
+            """).fetchone()
+
+            son = conn.execute("""
+                SELECT kabul_tarihi
+                FROM depo_kabul
+                WHERE kabul_durumu = 'KABUL'
+                ORDER BY id DESC
+                LIMIT 1
+            """).fetchone()
+        finally:
+            conn.close()
+
+        self.depo_ozet_labels["kayit"].configure(
+            text=str(int(row["kayit_sayisi"])),
+        )
+        self.depo_ozet_labels["miktar"].configure(
+            text=f'{float(row["toplam_kg"]):.3f} kg',
+        )
+        self.depo_ozet_labels["hammadde"].configure(
+            text=str(int(row["hammadde_sayisi"])),
+        )
+        self.depo_ozet_labels["son"].configure(
+            text=son["kabul_tarihi"] if son else "-",
+        )
+
+    def depo_kabul_filtre_temizle(self):
+        self.depo_arama.delete(0, "end")
+        self.depo_hammadde_filtre.set("TÜM HAMMADDELER")
+        self.depo_kabul_listele()
+
+    def depo_kabul_formu_ac(self):
+        self.depo_form_pencere = ctk.CTkToplevel(self)
+        self.depo_form_pencere.title(
+            "REDBOX OS — Yeni Depo Kabul",
+        )
+        self.depo_form_pencere.geometry("560x760")
+        self.depo_form_pencere.minsize(520, 680)
+        self.depo_form_pencere.transient(self)
+        self.depo_form_pencere.grab_set()
 
         form = ctk.CTkScrollableFrame(
-            ana_frame,
-            width=410
+            self.depo_form_pencere,
+            corner_radius=12,
         )
         form.pack(
-            side="left",
-            fill="y",
-            padx=(10, 5),
-            pady=10
+            fill="both",
+            expand=True,
+            padx=25,
+            pady=25,
         )
-
-        liste = ctk.CTkFrame(ana_frame)
-        liste.pack(side="right", fill="both", expand=True, padx=(5, 10), pady=10)
 
         ctk.CTkLabel(
             form,
             text="YENİ HAMMADDE KABULÜ",
-            font=("Arial", 18, "bold")
-        ).pack(pady=(20, 15))
-
-        conn = get_connection()
-        hammaddeler = conn.execute(
-            "SELECT id, ad FROM hammaddeler WHERE aktif = 1 ORDER BY id"
-        ).fetchall()
-        conn.close()
-
-        self.hammadde_map = {row["ad"]: row["id"] for row in hammaddeler}
-
-        self.kabul_tarihi = self.form_entry(
-            form, "Kabul Tarihi", datetime.now().strftime("%d.%m.%Y")
-        )
-
-        ctk.CTkLabel(form, text="Hammadde").pack(
-            anchor="w", padx=25, pady=(5, 2)
-        )
-        self.hammadde_secim = ctk.CTkOptionMenu(
-            form,
-            values=list(self.hammadde_map.keys()),
-            width=350
-        )
-        self.hammadde_secim.pack(padx=25, pady=(0, 8))
-
-        ctk.CTkLabel(
-            form,
-            text="Tedarikçi"
+            font=("Arial", 22, "bold"),
         ).pack(
             anchor="w",
             padx=25,
-            pady=(5, 2)
+            pady=(38, 4),
+        )
+
+        ctk.CTkLabel(
+            form,
+            text=(
+                "Tedarikçi, lot, tarih ve miktar bilgilerini "
+                "eksiksiz girin."
+            ),
+            text_color="#9CA3AF",
+            font=("Arial", 12),
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(0, 18),
         )
 
         conn = get_connection()
+        try:
+            hammaddeler = conn.execute("""
+                SELECT id, ad
+                FROM hammaddeler
+                WHERE aktif = 1
+                ORDER BY id
+            """).fetchall()
 
-        tedarikciler = conn.execute("""
-            SELECT
-                id,
-                tedarikci_adi
-            FROM tedarikciler
-            WHERE aktif = 1
-            ORDER BY tedarikci_adi
-        """).fetchall()
+            tedarikciler = conn.execute("""
+                SELECT id, tedarikci_adi
+                FROM tedarikciler
+                WHERE aktif = 1
+                ORDER BY tedarikci_adi
+            """).fetchall()
+        finally:
+            conn.close()
 
-        conn.close()
-
+        self.hammadde_map = {
+            row["ad"]: row["id"]
+            for row in hammaddeler
+        }
         self.tedarikci_map = {
             row["tedarikci_adi"]: row["id"]
             for row in tedarikciler
         }
 
+        self.kabul_tarihi = self.form_entry(
+            form,
+            "Kabul Tarihi",
+            datetime.now().strftime("%d.%m.%Y"),
+        )
+
+        ctk.CTkLabel(
+            form,
+            text="Hammadde",
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(5, 2),
+        )
+        self.hammadde_secim = ctk.CTkOptionMenu(
+            form,
+            values=list(self.hammadde_map.keys()),
+            width=350,
+        )
+        self.hammadde_secim.pack(
+            padx=25,
+            pady=(0, 8),
+        )
+
+        ctk.CTkLabel(
+            form,
+            text="Tedarikçi",
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(5, 2),
+        )
         self.tedarikci = ctk.CTkComboBox(
             form,
             values=(
@@ -879,33 +1131,45 @@ class RedboxOS(ctk.CTk):
                 if self.tedarikci_map
                 else [""]
             ),
-            width=350
+            width=350,
         )
-
         self.tedarikci.pack(
             padx=25,
-            pady=(0, 5)
+            pady=(0, 5),
         )
-
         self.tedarikci.set("")
 
-        self.lot_no = self.form_entry(form, "Tedarikçi Lot No")
-        self.urt = self.form_entry(form, "Üretim Tarihi")
-        self.skt = self.form_entry(form, "SKT / TETT")
-        self.miktar = self.form_entry(form, "Miktar (kg)")
-        self.aciklama = self.form_entry(form, "Açıklama")
+        self.lot_no = self.form_entry(
+            form,
+            "Tedarikçi Lot No",
+        )
+        self.urt = self.form_entry(
+            form,
+            "Üretim Tarihi",
+        )
+        self.skt = self.form_entry(
+            form,
+            "SKT / TETT",
+        )
+        self.miktar = self.form_entry(
+            form,
+            "Miktar (kg)",
+        )
+        self.aciklama = self.form_entry(
+            form,
+            "Açıklama",
+        )
 
-        kabul_kaydet_button = ctk.CTkButton(
+        ctk.CTkButton(
             form,
             text="KABUL KAYDINI KAYDET",
             command=self.depo_kabul_kaydet,
-            height=45,
+            height=46,
             width=350,
-            font=("Arial", 14, "bold")
-        )
-        kabul_kaydet_button.pack(
+            font=("Arial", 14, "bold"),
+        ).pack(
             padx=25,
-            pady=(15, 8)
+            pady=(18, 8),
         )
 
         ctk.CTkButton(
@@ -914,27 +1178,34 @@ class RedboxOS(ctk.CTk):
             command=self.depo_form_temizle,
             height=38,
             width=350,
-            fg_color="gray35"
-        ).pack(padx=25, pady=(0, 15))
-
-        ctk.CTkLabel(
-            liste,
-            text="SON DEPO KABUL KAYITLARI",
-            font=("Arial", 18, "bold")
-        ).pack(anchor="w", padx=20, pady=(20, 10))
-
-        self.kabul_liste_frame = ctk.CTkFrame(
-            liste,
-            corner_radius=8
-        )
-        self.kabul_liste_frame.pack(
-            fill="both",
-            expand=True,
-            padx=15,
-            pady=(0, 15)
+            fg_color="#4B5563",
+        ).pack(
+            padx=25,
+            pady=(0, 20),
         )
 
-        self.depo_kabul_listele()
+        self.update_idletasks()
+        x = (
+            self.winfo_x()
+            + max(
+                (self.winfo_width() - 560) // 2,
+                0,
+            )
+        )
+        y = (
+            self.winfo_y()
+            + max(
+                (self.winfo_height() - 760) // 2,
+                20,
+            )
+        )
+        self.depo_form_pencere.geometry(
+            f"560x760+{x}+{y}"
+        )
+        self.depo_form_pencere.after(
+            150,
+            self.depo_form_pencere.focus_force,
+        )
 
     def _show_context_menu(self, event):
         self._context_menu_widget = event.widget
@@ -1149,7 +1420,14 @@ class RedboxOS(ctk.CTk):
             )
 
             self.depo_form_temizle()
+            self.depo_kabul_ozet_guncelle()
             self.depo_kabul_listele()
+
+            if (
+                hasattr(self, "depo_form_pencere")
+                and self.depo_form_pencere.winfo_exists()
+            ):
+                self.depo_form_pencere.destroy()
 
         except ValueError as hata:
             messagebox.showerror("Kayıt Hatası", str(hata))
@@ -1178,23 +1456,61 @@ class RedboxOS(ctk.CTk):
         for widget in self.kabul_liste_frame.winfo_children():
             widget.destroy()
 
-        conn = get_connection()
+        search = (
+            self.depo_arama.get().strip()
+            if hasattr(self, "depo_arama")
+            else ""
+        )
+        material = (
+            self.depo_hammadde_filtre.get().strip()
+            if hasattr(self, "depo_hammadde_filtre")
+            else "TÜM HAMMADDELER"
+        )
 
+        where = []
+        params = []
+
+        if search:
+            like = f"%{search}%"
+            where.append("""
+                (
+                    h.ad LIKE ?
+                    OR COALESCE(dk.tedarikci, '') LIKE ?
+                    OR dk.tedarikci_lot_no LIKE ?
+                )
+            """)
+            params.extend((like, like, like))
+
+        if material and material != "TÜM HAMMADDELER":
+            where.append("h.ad = ?")
+            params.append(material)
+
+        where_sql = (
+            "WHERE " + " AND ".join(where)
+            if where
+            else ""
+        )
+
+        conn = get_connection()
         try:
-            kayitlar = conn.execute("""
+            kayitlar = conn.execute(f"""
                 SELECT
                     dk.id,
                     dk.kabul_tarihi,
                     h.ad AS hammadde,
                     dk.tedarikci,
                     dk.tedarikci_lot_no,
-                    dk.miktar_kg
+                    dk.uretim_tarihi,
+                    dk.skt_tett,
+                    dk.miktar_kg,
+                    dk.kabul_durumu
                 FROM depo_kabul dk
                 JOIN hammaddeler h
                   ON h.id = dk.hammadde_id
+                {where_sql}
                 ORDER BY dk.id DESC
-                LIMIT 100
-            """).fetchall()
+                LIMIT 250
+            """, params).fetchall()
         finally:
             conn.close()
 
@@ -1202,77 +1518,104 @@ class RedboxOS(ctk.CTk):
         style.theme_use("clam")
         style.configure(
             "Redbox.Treeview",
-            background="#2b2b2b",
-            fieldbackground="#2b2b2b",
-            foreground="#e5e7eb",
-            rowheight=38,
+            background="#282828",
+            fieldbackground="#282828",
+            foreground="#E5E7EB",
+            rowheight=40,
             borderwidth=0,
-            font=("Arial", 12)
+            font=("Arial", 11),
         )
         style.configure(
             "Redbox.Treeview.Heading",
             background="#343434",
-            foreground="#e5e7eb",
+            foreground="#F3F4F6",
             relief="flat",
-            font=("Arial", 12, "bold")
+            font=("Arial", 11, "bold"),
         )
         style.map(
             "Redbox.Treeview",
-            background=[("selected", "#1f6aa5")],
-            foreground=[("selected", "#ffffff")]
+            background=[("selected", "#1F6AA5")],
+            foreground=[("selected", "#FFFFFF")],
         )
 
-        toolbar = ctk.CTkFrame(
+        header = ctk.CTkFrame(
             self.kabul_liste_frame,
-            fg_color="transparent"
+            fg_color="transparent",
         )
-        toolbar.pack(
+        header.pack(
             fill="x",
-            padx=8,
-            pady=(8, 4)
+            padx=12,
+            pady=(12, 6),
         )
 
         self.kabul_kayit_sayisi = ctk.CTkLabel(
-            toolbar,
-            text=f"TOPLAM KAYIT: {len(kayitlar)}",
-            font=("Arial", 12, "bold")
+            header,
+            text=f"GÖSTERİLEN KAYIT: {len(kayitlar)}",
+            font=("Arial", 12, "bold"),
         )
         self.kabul_kayit_sayisi.pack(
             side="left",
-            padx=5
+            padx=4,
+        )
+
+        ctk.CTkLabel(
+            header,
+            text=(
+                "Satıra çift tıklayın: Kabul PDF"
+            ),
+            font=("Arial", 11),
+            text_color="#9CA3AF",
+        ).pack(
+            side="left",
+            padx=15,
         )
 
         ctk.CTkButton(
-            toolbar,
-            text="SEÇİLİ KAYDI SİL",
-            width=145,
-            height=34,
-            fg_color="gray35",
-            command=self.depo_kabul_secili_sil
+            header,
+            text="SEÇİLİ PDF",
+            width=105,
+            height=32,
+            command=self.depo_kabul_secili_pdf,
         ).pack(
             side="right",
-            padx=5
+            padx=4,
+        )
+
+        ctk.CTkButton(
+            header,
+            text="SEÇİLİ KAYDI SİL",
+            width=140,
+            height=32,
+            fg_color="#4B5563",
+            command=self.depo_kabul_secili_sil,
+        ).pack(
+            side="right",
+            padx=4,
         )
 
         tree_area = ctk.CTkFrame(
             self.kabul_liste_frame,
-            fg_color="transparent"
+            fg_color="transparent",
         )
         tree_area.pack(
             fill="both",
             expand=True,
-            padx=8,
-            pady=(4, 8)
+            padx=12,
+            pady=(4, 12),
         )
         tree_area.grid_rowconfigure(0, weight=1)
         tree_area.grid_columnconfigure(0, weight=1)
 
         columns = (
+            "id",
             "tarih",
             "hammadde",
             "tedarikci",
             "lot",
+            "urt",
+            "skt",
             "miktar",
+            "durum",
         )
 
         self.kabul_tree = ttk.Treeview(
@@ -1280,77 +1623,122 @@ class RedboxOS(ctk.CTk):
             columns=columns,
             show="headings",
             style="Redbox.Treeview",
-            selectmode="browse"
+            selectmode="browse",
         )
 
         headings = (
-            ("tarih", "TARİH", 95, "w"),
-            ("hammadde", "HAMMADDE", 145, "w"),
-            ("tedarikci", "TEDARİKÇİ", 130, "w"),
-            ("lot", "LOT NO", 125, "w"),
-            ("miktar", "KG", 85, "e"),
+            ("id", "ID", 55, "center", False),
+            ("tarih", "KABUL TARİHİ", 125, "w", False),
+            ("hammadde", "HAMMADDE", 155, "w", True),
+            ("tedarikci", "TEDARİKÇİ", 145, "w", True),
+            ("lot", "LOT NO", 125, "w", True),
+            ("urt", "ÜRETİM", 95, "center", False),
+            ("skt", "SKT / TETT", 95, "center", False),
+            ("miktar", "MİKTAR (KG)", 120, "e", False),
+            ("durum", "DURUM", 85, "center", False),
         )
 
-        for column, title, width, anchor in headings:
+        for column, title, width, anchor, stretch in headings:
             self.kabul_tree.heading(
                 column,
                 text=title,
-                anchor=anchor
+                anchor=anchor,
             )
             self.kabul_tree.column(
                 column,
                 width=width,
-                minwidth=65,
+                minwidth=50,
                 anchor=anchor,
-                stretch=True
+                stretch=stretch,
             )
 
         self.kabul_tree.tag_configure(
             "even",
-            background="#292929"
+            background="#292929",
         )
         self.kabul_tree.tag_configure(
             "odd",
-            background="#303030"
+            background="#303030",
+        )
+        self.kabul_tree.tag_configure(
+            "accepted",
+            foreground="#D1FAE5",
         )
 
         for index, kayit in enumerate(kayitlar):
+            row_tag = "even" if index % 2 == 0 else "odd"
+
             self.kabul_tree.insert(
                 "",
                 "end",
                 iid=str(kayit["id"]),
                 values=(
+                    kayit["id"],
                     kayit["kabul_tarihi"],
                     kayit["hammadde"],
                     kayit["tedarikci"] or "-",
                     kayit["tedarikci_lot_no"],
+                    kayit["uretim_tarihi"] or "-",
+                    kayit["skt_tett"] or "-",
                     f'{float(kayit["miktar_kg"]):.3f}',
+                    kayit["kabul_durumu"],
                 ),
                 tags=(
-                    "even"
-                    if index % 2 == 0
-                    else "odd",
-                )
+                    row_tag,
+                    "accepted"
+                    if kayit["kabul_durumu"] == "KABUL"
+                    else row_tag,
+                ),
             )
 
-        scrollbar = ttk.Scrollbar(
+        vertical = ttk.Scrollbar(
             tree_area,
             orient="vertical",
-            command=self.kabul_tree.yview
+            command=self.kabul_tree.yview,
+        )
+        horizontal = ttk.Scrollbar(
+            tree_area,
+            orient="horizontal",
+            command=self.kabul_tree.xview,
         )
         self.kabul_tree.configure(
-            yscrollcommand=scrollbar.set
+            yscrollcommand=vertical.set,
+            xscrollcommand=horizontal.set,
         )
 
         self.kabul_tree.grid(
             row=0,
             column=0,
-            sticky="nsew"
+            sticky="nsew",
         )
-        scrollbar.grid(
+        vertical.grid(
             row=0,
             column=1,
-            sticky="ns"
+            sticky="ns",
+        )
+        horizontal.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+        )
+
+        self.kabul_tree.bind(
+            "<Double-1>",
+            lambda _event: self.depo_kabul_secili_pdf(),
+        )
+
+    def depo_kabul_secili_pdf(self):
+        secim = self.kabul_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Kayıt Seçilmedi",
+                "PDF için tablodan bir kayıt seçin.",
+            )
+            return
+
+        self.hammadde_kabul_pdf_raporu(
+            int(secim[0]),
         )
 
     def depo_kabul_secili_sil(self):
@@ -1386,6 +1774,7 @@ class RedboxOS(ctk.CTk):
             conn.commit()
             conn.close()
 
+            self.depo_kabul_ozet_guncelle()
             self.depo_kabul_listele()
 
         except Exception as hata:
