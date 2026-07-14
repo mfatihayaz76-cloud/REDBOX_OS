@@ -729,6 +729,9 @@ def uretim_pdf_olustur(conn, uretim_id):
         SELECT
             u.id,
             u.uretim_tarihi,
+            u.baslama_saati,
+            u.bitis_saati,
+            u.uretim_suresi_dakika,
             u.urun_lot_no,
             u.parti_sayisi,
             u.teorik_uretim_kg,
@@ -800,6 +803,23 @@ def uretim_pdf_olustur(conn, uretim_id):
     bilgiler = [
         ("Üretim Kayıt ID", uretim["id"]),
         ("Üretim Tarihi", uretim["uretim_tarihi"]),
+        (
+            "Başlama Saati",
+            uretim["baslama_saati"] or "-"
+        ),
+        (
+            "Bitiş Saati",
+            uretim["bitis_saati"] or "-"
+        ),
+        (
+            "Toplam Üretim Süresi",
+            (
+                f"{int(uretim['uretim_suresi_dakika']) // 60} saat "
+                f"{int(uretim['uretim_suresi_dakika']) % 60} dakika"
+                if uretim["uretim_suresi_dakika"] is not None
+                else "-"
+            )
+        ),
         ("Ürün Lot No", uretim["urun_lot_no"]),
         ("Parti Sayısı", uretim["parti_sayisi"]),
         (
@@ -868,6 +888,9 @@ def paketleme_pdf_olustur(conn, paketleme_id):
         SELECT
             p.id,
             p.paketleme_tarihi,
+            p.baslama_saati,
+            p.bitis_saati,
+            p.paketleme_suresi_dakika,
             u.urun_lot_no,
             p.ambalaj_gram,
             p.paket_adedi,
@@ -919,6 +942,23 @@ def paketleme_pdf_olustur(conn, paketleme_id):
         (
             "Paketleme Tarihi",
             kayit["paketleme_tarihi"]
+        ),
+        (
+            "Başlama Saati",
+            kayit["baslama_saati"] or "-"
+        ),
+        (
+            "Bitiş Saati",
+            kayit["bitis_saati"] or "-"
+        ),
+        (
+            "Toplam Paketleme Süresi",
+            (
+                f"{int(kayit['paketleme_suresi_dakika']) // 60} saat "
+                f"{int(kayit['paketleme_suresi_dakika']) % 60} dakika"
+                if kayit["paketleme_suresi_dakika"] is not None
+                else "-"
+            )
         ),
         ("Ürün Lot No", kayit["urun_lot_no"]),
         (

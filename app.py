@@ -1249,6 +1249,45 @@ class RedboxOS(ctk.CTk):
 
         return entry
 
+    def calisma_suresi_hesapla(
+        self,
+        baslama_saati,
+        bitis_saati,
+        islem_adi,
+    ):
+        if not baslama_saati or not bitis_saati:
+            raise ValueError(
+                f"{islem_adi} başlangıç ve bitiş "
+                "saatleri zorunludur."
+            )
+
+        try:
+            baslangic = datetime.strptime(
+                baslama_saati,
+                "%H:%M",
+            )
+            bitis = datetime.strptime(
+                bitis_saati,
+                "%H:%M",
+            )
+        except ValueError:
+            raise ValueError(
+                f"{islem_adi} saatleri SS:DD "
+                "formatında girilmelidir."
+            )
+
+        sure_dakika = int(
+            (bitis - baslangic).total_seconds() / 60
+        )
+
+        if sure_dakika <= 0:
+            raise ValueError(
+                f"{islem_adi} bitiş saati başlangıç "
+                "saatinden sonra olmalıdır."
+            )
+
+        return sure_dakika
+
     def depo_kabul_kaydet(self):
         try:
             tarih = self.kabul_tarihi.get().strip()
@@ -1844,6 +1883,17 @@ class RedboxOS(ctk.CTk):
             form,
             "Üretim Tarihi",
             datetime.now().strftime("%d.%m.%Y")
+        )
+
+        self.uretim_baslama_saati = self.form_entry(
+            form,
+            "Üretim Başlama Saati (SS:DD)",
+            datetime.now().strftime("%H:%M"),
+        )
+
+        self.uretim_bitis_saati = self.form_entry(
+            form,
+            "Üretim Bitiş Saati (SS:DD)",
         )
 
         self.urun_lot_no = self.form_entry(
@@ -2661,6 +2711,12 @@ class RedboxOS(ctk.CTk):
     def uretim_kaydet(self):
         try:
             tarih = self.uretim_tarihi.get().strip()
+            baslama_saati = (
+                self.uretim_baslama_saati.get().strip()
+            )
+            bitis_saati = (
+                self.uretim_bitis_saati.get().strip()
+            )
             lot_no = self.urun_lot_no.get().strip()
             parti_text = self.parti_sayisi.get().strip()
             fire_text = self.uretim_firesi.get().strip().replace(",", ".")
@@ -2680,6 +2736,14 @@ class RedboxOS(ctk.CTk):
 
             if not tarih:
                 raise ValueError("Üretim tarihi boş bırakılamaz.")
+
+            uretim_suresi_dakika = (
+                self.calisma_suresi_hesapla(
+                    baslama_saati,
+                    bitis_saati,
+                    "Üretim",
+                )
+            )
 
             if not lot_no:
                 raise ValueError("Ürün lot numarası zorunludur.")
@@ -2753,6 +2817,9 @@ class RedboxOS(ctk.CTk):
                 cursor = conn.execute("""
                     INSERT INTO uretim (
                         uretim_tarihi,
+                        baslama_saati,
+                        bitis_saati,
+                        uretim_suresi_dakika,
                         urun_lot_no,
                         parti_sayisi,
                         teorik_uretim_kg,
@@ -2763,9 +2830,12 @@ class RedboxOS(ctk.CTk):
                         aciklama,
                         kayit_zamani
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     tarih,
+                    baslama_saati,
+                    bitis_saati,
+                    uretim_suresi_dakika,
                     lot_no,
                     parti,
                     teorik,
@@ -2895,6 +2965,9 @@ class RedboxOS(ctk.CTk):
                 SELECT
                     id,
                     uretim_tarihi,
+                    baslama_saati,
+                    bitis_saati,
+                    uretim_suresi_dakika,
                     urun_lot_no,
                     parti_sayisi,
                     teorik_uretim_kg,
@@ -2973,6 +3046,8 @@ class RedboxOS(ctk.CTk):
 
         columns = (
             "tarih",
+            "saat",
+            "sure",
             "lot",
             "parti",
             "teorik",
@@ -2989,12 +3064,14 @@ class RedboxOS(ctk.CTk):
         )
 
         headings = (
-            ("tarih", "TARİH", 90, "w"),
-            ("lot", "ÜRÜN LOTU", 115, "w"),
-            ("parti", "PARTİ", 58, "center"),
-            ("teorik", "TEORİK KG", 88, "e"),
-            ("fire", "FİRE KG", 72, "e"),
-            ("net", "NET KG", 88, "e"),
+            ("tarih", "TARİH", 85, "w"),
+            ("saat", "BAŞLANGIÇ–BİTİŞ", 125, "center"),
+            ("sure", "SÜRE", 85, "center"),
+            ("lot", "ÜRÜN LOTU", 110, "w"),
+            ("parti", "PARTİ", 55, "center"),
+            ("teorik", "TEORİK KG", 82, "e"),
+            ("fire", "FİRE KG", 68, "e"),
+            ("net", "NET KG", 82, "e"),
         )
 
         for column, title, width, anchor in headings:
@@ -3027,6 +3104,19 @@ class RedboxOS(ctk.CTk):
                 iid=str(kayit["id"]),
                 values=(
                     kayit["uretim_tarihi"],
+                    (
+                        f'{kayit["baslama_saati"]}–'
+                        f'{kayit["bitis_saati"]}'
+                        if kayit["baslama_saati"]
+                        and kayit["bitis_saati"]
+                        else "-"
+                    ),
+                    (
+                        f'{int(kayit["uretim_suresi_dakika"]) // 60} sa '
+                        f'{int(kayit["uretim_suresi_dakika"]) % 60} dk'
+                        if kayit["uretim_suresi_dakika"] is not None
+                        else "-"
+                    ),
                     kayit["urun_lot_no"],
                     int(kayit["parti_sayisi"]),
                     f'{float(kayit["teorik_uretim_kg"]):.3f}',
@@ -3157,6 +3247,17 @@ class RedboxOS(ctk.CTk):
             form,
             "Paketleme Tarihi",
             datetime.now().strftime("%d.%m.%Y")
+        )
+
+        self.paketleme_baslama_saati = self.form_entry(
+            form,
+            "Paketleme Başlama Saati (SS:DD)",
+            datetime.now().strftime("%H:%M"),
+        )
+
+        self.paketleme_bitis_saati = self.form_entry(
+            form,
+            "Paketleme Bitiş Saati (SS:DD)",
         )
 
         ctk.CTkLabel(
@@ -3647,6 +3748,12 @@ class RedboxOS(ctk.CTk):
     def paketleme_kaydet(self):
         try:
             tarih = self.paketleme_tarihi.get().strip()
+            baslama_saati = (
+                self.paketleme_baslama_saati.get().strip()
+            )
+            bitis_saati = (
+                self.paketleme_bitis_saati.get().strip()
+            )
             lot_secim = self.paketleme_lot_secim.get().strip()
             ambalaj = self.ambalaj_secim.get().strip()
             adet_text = self.paket_adedi.get().strip()
@@ -3665,6 +3772,14 @@ class RedboxOS(ctk.CTk):
                 raise ValueError(
                     "Paketleme tarihi boş bırakılamaz."
                 )
+
+            paketleme_suresi_dakika = (
+                self.calisma_suresi_hesapla(
+                    baslama_saati,
+                    bitis_saati,
+                    "Paketleme",
+                )
+            )
 
             if lot_secim not in self.paketleme_uretim_map:
                 raise ValueError(
@@ -3767,6 +3882,9 @@ class RedboxOS(ctk.CTk):
                 conn.execute("""
                     INSERT INTO paketleme (
                         paketleme_tarihi,
+                        baslama_saati,
+                        bitis_saati,
+                        paketleme_suresi_dakika,
                         uretim_id,
                         ambalaj_gram,
                         paket_adedi,
@@ -3776,9 +3894,12 @@ class RedboxOS(ctk.CTk):
                         aciklama,
                         kayit_zamani
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     tarih,
+                    baslama_saati,
+                    bitis_saati,
+                    paketleme_suresi_dakika,
                     uretim_id,
                     ambalaj_gram,
                     adet,
@@ -3897,6 +4018,9 @@ class RedboxOS(ctk.CTk):
                 SELECT
                     p.id,
                     p.paketleme_tarihi,
+                    p.baslama_saati,
+                    p.bitis_saati,
+                    p.paketleme_suresi_dakika,
                     u.urun_lot_no,
                     p.ambalaj_gram,
                     p.paket_adedi,
@@ -3973,6 +4097,8 @@ class RedboxOS(ctk.CTk):
 
         columns = (
             "tarih",
+            "saat",
+            "sure",
             "lot",
             "ambalaj",
             "paket",
@@ -3990,13 +4116,15 @@ class RedboxOS(ctk.CTk):
         )
 
         headings = (
-            ("tarih", "TARİH", 95, "w"),
-            ("lot", "ÜRETİM LOTU", 120, "w"),
-            ("ambalaj", "AMBALAJ", 90, "center"),
-            ("paket", "PAKET", 75, "e"),
-            ("koli_ici", "KOLİ İÇİ", 75, "e"),
-            ("kg", "PAKETLENEN KG", 115, "e"),
-            ("fire", "FİRE KG", 80, "e"),
+            ("tarih", "TARİH", 82, "w"),
+            ("saat", "BAŞLANGIÇ–BİTİŞ", 120, "center"),
+            ("sure", "SÜRE", 82, "center"),
+            ("lot", "ÜRETİM LOTU", 105, "w"),
+            ("ambalaj", "AMBALAJ", 75, "center"),
+            ("paket", "PAKET", 65, "e"),
+            ("koli_ici", "KOLİ İÇİ", 65, "e"),
+            ("kg", "PAKETLENEN KG", 100, "e"),
+            ("fire", "FİRE KG", 70, "e"),
         )
 
         for column, title, width, anchor in headings:
@@ -4038,6 +4166,19 @@ class RedboxOS(ctk.CTk):
                 iid=str(kayit["id"]),
                 values=(
                     kayit["paketleme_tarihi"],
+                    (
+                        f'{kayit["baslama_saati"]}–'
+                        f'{kayit["bitis_saati"]}'
+                        if kayit["baslama_saati"]
+                        and kayit["bitis_saati"]
+                        else "-"
+                    ),
+                    (
+                        f'{int(kayit["paketleme_suresi_dakika"]) // 60} sa '
+                        f'{int(kayit["paketleme_suresi_dakika"]) % 60} dk'
+                        if kayit["paketleme_suresi_dakika"] is not None
+                        else "-"
+                    ),
                     kayit["urun_lot_no"],
                     ambalaj,
                     int(kayit["paket_adedi"]),
