@@ -1799,18 +1799,34 @@ class RedboxOS(ctk.CTk):
         )
         form.pack(
             side="left",
-            fill="y",
-            padx=(10, 5),
-            pady=10
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
         )
+        self.uretim_form_panel = form
 
         liste = ctk.CTkFrame(ana_frame)
         liste.pack(
             side="right",
             fill="both",
             expand=True,
-            padx=(5, 10),
-            pady=10
+            padx=10,
+            pady=10,
+        )
+        self.uretim_liste_panel = liste
+
+        ctk.CTkButton(
+            form,
+            text="← KAYITLARA DÖN",
+            width=160,
+            height=36,
+            fg_color="#4B5563",
+            command=self.uretim_liste_goster,
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(15, 0),
         )
 
         ctk.CTkLabel(
@@ -2104,18 +2120,179 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             liste,
-            text="SON ÜRETİM KAYITLARI",
-            font=("Arial", 18, "bold")
-        ).pack(anchor="w", padx=20, pady=(20, 10))
+            text="ÜRETİM KAYITLARI",
+            font=("Arial", 18, "bold"),
+        ).pack(
+            anchor="w",
+            padx=18,
+            pady=(16, 8),
+        )
 
-        self.uretim_liste_frame = ctk.CTkScrollableFrame(liste)
+        summary = ctk.CTkFrame(
+            liste,
+            fg_color="transparent",
+        )
+        summary.pack(
+            fill="x",
+            padx=12,
+            pady=(0, 8),
+        )
+
+        self.uretim_ozet_labels = {}
+
+        cards = (
+            ("kayit", "TOPLAM KAYIT", "0"),
+            ("net", "TOPLAM NET", "0.000 kg"),
+            ("fire", "TOPLAM FİRE", "0.000 kg"),
+            ("son", "SON LOT", "-"),
+        )
+
+        for key, title, value in cards:
+            card = ctk.CTkFrame(
+                summary,
+                height=78,
+                corner_radius=10,
+            )
+            card.pack(
+                side="left",
+                fill="x",
+                expand=True,
+                padx=4,
+            )
+            card.pack_propagate(False)
+
+            ctk.CTkLabel(
+                card,
+                text=title,
+                font=("Arial", 10, "bold"),
+                text_color="#9CA3AF",
+            ).pack(
+                anchor="w",
+                padx=12,
+                pady=(12, 2),
+            )
+
+            label = ctk.CTkLabel(
+                card,
+                text=value,
+                font=("Arial", 16, "bold"),
+            )
+            label.pack(
+                anchor="w",
+                padx=12,
+            )
+            self.uretim_ozet_labels[key] = label
+
+        toolbar = ctk.CTkFrame(
+            liste,
+            corner_radius=8,
+        )
+        toolbar.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 8),
+        )
+
+        self.uretim_arama = ctk.CTkEntry(
+            toolbar,
+            width=235,
+            height=36,
+            placeholder_text="Tarih, ürün lotu veya personel ara...",
+        )
+        self.uretim_arama.pack(
+            side="left",
+            padx=(10, 5),
+            pady=10,
+        )
+        self.uretim_arama.bind(
+            "<KeyRelease>",
+            lambda _event: self.uretim_listele(),
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="TEMİZLE",
+            width=85,
+            height=36,
+            fg_color="#4B5563",
+            command=self.uretim_filtre_temizle,
+        ).pack(
+            side="left",
+            padx=5,
+            pady=10,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="+ YENİ ÜRETİM",
+            width=135,
+            height=36,
+            font=("Arial", 11, "bold"),
+            command=self.uretim_form_goster,
+        ).pack(
+            side="right",
+            padx=(5, 10),
+            pady=10,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="SEÇİLİ PDF",
+            width=105,
+            height=36,
+            command=self.uretim_secili_pdf,
+        ).pack(
+            side="right",
+            padx=(5, 10),
+            pady=10,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="SEÇİLİ KAYDI SİL",
+            width=125,
+            height=36,
+            fg_color="#4B5563",
+            command=self.uretim_secili_sil,
+        ).pack(
+            side="right",
+            padx=5,
+            pady=10,
+        )
+
+        self.uretim_liste_frame = ctk.CTkFrame(
+            liste,
+            corner_radius=8,
+        )
         self.uretim_liste_frame.pack(
             fill="both",
             expand=True,
             padx=15,
-            pady=(0, 15)
+            pady=(0, 15),
         )
 
+        self.uretim_ozet_guncelle()
+        self.uretim_listele()
+        self.uretim_form_panel.pack_forget()
+
+    def uretim_form_goster(self):
+        self.uretim_liste_panel.pack_forget()
+        self.uretim_form_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+
+    def uretim_liste_goster(self):
+        self.uretim_form_panel.pack_forget()
+        self.uretim_liste_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+        self.uretim_ozet_guncelle()
         self.uretim_listele()
 
     def uretim_lot_plani_hazirla(self):
@@ -2636,92 +2813,252 @@ class RedboxOS(ctk.CTk):
                 f"Üretim kaydı yapılamadı:\n{hata}"
             )
 
+    def uretim_ozet_guncelle(self):
+        conn = get_connection()
+        try:
+            row = conn.execute("""
+                SELECT
+                    COUNT(*) AS kayit_sayisi,
+                    COALESCE(SUM(net_uretim_kg), 0) AS net_kg,
+                    COALESCE(SUM(uretim_firesi_kg), 0) AS fire_kg
+                FROM uretim
+            """).fetchone()
+
+            son = conn.execute("""
+                SELECT urun_lot_no
+                FROM uretim
+                ORDER BY id DESC
+                LIMIT 1
+            """).fetchone()
+        finally:
+            conn.close()
+
+        self.uretim_ozet_labels["kayit"].configure(
+            text=str(int(row["kayit_sayisi"])),
+        )
+        self.uretim_ozet_labels["net"].configure(
+            text=f'{float(row["net_kg"]):.3f} kg',
+        )
+        self.uretim_ozet_labels["fire"].configure(
+            text=f'{float(row["fire_kg"]):.3f} kg',
+        )
+        self.uretim_ozet_labels["son"].configure(
+            text=son["urun_lot_no"] if son else "-",
+        )
+
+    def uretim_filtre_temizle(self):
+        self.uretim_arama.delete(0, "end")
+        self.uretim_listele()
+
+    def uretim_secili_pdf(self):
+        secim = self.uretim_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Kayıt Seçilmedi",
+                "PDF için tablodan bir üretim kaydı seçin.",
+            )
+            return
+
+        self.uretim_pdf_raporu(int(secim[0]))
+
+    def uretim_secili_sil(self):
+        secim = self.uretim_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Kayıt Seçilmedi",
+                "Silmek için tablodan bir üretim kaydı seçin.",
+            )
+            return
+
+        self.uretim_sil(int(secim[0]))
+
     def uretim_listele(self):
         for widget in self.uretim_liste_frame.winfo_children():
             widget.destroy()
 
+        arama = ""
+        if hasattr(self, "uretim_arama"):
+            arama = self.uretim_arama.get().strip()
+
+        like = f"%{arama}%"
+
         conn = get_connection()
+        try:
+            kayitlar = conn.execute("""
+                SELECT
+                    id,
+                    uretim_tarihi,
+                    urun_lot_no,
+                    parti_sayisi,
+                    teorik_uretim_kg,
+                    uretim_firesi_kg,
+                    net_uretim_kg,
+                    personel_1,
+                    personel_2
+                FROM uretim
+                WHERE (
+                    ? = ''
+                    OR uretim_tarihi LIKE ?
+                    OR urun_lot_no LIKE ?
+                    OR COALESCE(personel_1, '') LIKE ?
+                    OR COALESCE(personel_2, '') LIKE ?
+                )
+                ORDER BY id DESC
+                LIMIT 200
+            """, (
+                arama,
+                like,
+                like,
+                like,
+                like,
+            )).fetchall()
+        finally:
+            conn.close()
 
-        kayitlar = conn.execute("""
-            SELECT
-                id,
-                uretim_tarihi,
-                urun_lot_no,
-                parti_sayisi,
-                teorik_uretim_kg,
-                uretim_firesi_kg,
-                net_uretim_kg
-            FROM uretim
-            ORDER BY id DESC
-            LIMIT 100
-        """).fetchall()
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Production.Treeview",
+            background="#2b2b2b",
+            fieldbackground="#2b2b2b",
+            foreground="#e5e7eb",
+            rowheight=38,
+            borderwidth=0,
+            font=("Arial", 11),
+        )
+        style.configure(
+            "Production.Treeview.Heading",
+            background="#343434",
+            foreground="#e5e7eb",
+            relief="flat",
+            font=("Arial", 11, "bold"),
+        )
+        style.map(
+            "Production.Treeview",
+            background=[("selected", "#1f6aa5")],
+            foreground=[("selected", "#ffffff")],
+        )
 
-        conn.close()
+        info = ctk.CTkLabel(
+            self.uretim_liste_frame,
+            text=f"GÖSTERİLEN KAYIT: {len(kayitlar)}",
+            font=("Arial", 11, "bold"),
+            text_color="#9CA3AF",
+        )
+        info.pack(
+            anchor="w",
+            padx=12,
+            pady=(10, 5),
+        )
 
-        if not kayitlar:
-            ctk.CTkLabel(
-                self.uretim_liste_frame,
-                text="Henüz üretim kaydı bulunmuyor."
-            ).pack(pady=30)
-            return
+        tree_area = ctk.CTkFrame(
+            self.uretim_liste_frame,
+            fg_color="transparent",
+        )
+        tree_area.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=(0, 10),
+        )
+        tree_area.grid_rowconfigure(0, weight=1)
+        tree_area.grid_columnconfigure(0, weight=1)
 
-        for kayit in kayitlar:
-            satir = ctk.CTkFrame(
-                self.uretim_liste_frame
+        columns = (
+            "tarih",
+            "lot",
+            "parti",
+            "teorik",
+            "fire",
+            "net",
+        )
+
+        self.uretim_tree = ttk.Treeview(
+            tree_area,
+            columns=columns,
+            show="headings",
+            style="Production.Treeview",
+            selectmode="browse",
+        )
+
+        headings = (
+            ("tarih", "TARİH", 90, "w"),
+            ("lot", "ÜRÜN LOTU", 115, "w"),
+            ("parti", "PARTİ", 58, "center"),
+            ("teorik", "TEORİK KG", 88, "e"),
+            ("fire", "FİRE KG", 72, "e"),
+            ("net", "NET KG", 88, "e"),
+        )
+
+        for column, title, width, anchor in headings:
+            self.uretim_tree.heading(
+                column,
+                text=title,
+                anchor=anchor,
             )
-            satir.pack(
-                fill="x",
-                padx=5,
-                pady=4
+            self.uretim_tree.column(
+                column,
+                width=width,
+                minwidth=55,
+                anchor=anchor,
+                stretch=True,
             )
 
-            bilgi = (
-                f'{kayit["uretim_tarihi"]}  •  '
-                f'LOT {kayit["urun_lot_no"]}\n'
-                f'{kayit["parti_sayisi"]} parti  •  '
-                f'Teorik: {kayit["teorik_uretim_kg"]:.3f} kg  •  '
-                f'Fire: {kayit["uretim_firesi_kg"]:.3f} kg  •  '
-                f'Net: {kayit["net_uretim_kg"]:.3f} kg'
+        self.uretim_tree.tag_configure(
+            "even",
+            background="#292929",
+        )
+        self.uretim_tree.tag_configure(
+            "odd",
+            background="#303030",
+        )
+
+        for index, kayit in enumerate(kayitlar):
+            self.uretim_tree.insert(
+                "",
+                "end",
+                iid=str(kayit["id"]),
+                values=(
+                    kayit["uretim_tarihi"],
+                    kayit["urun_lot_no"],
+                    int(kayit["parti_sayisi"]),
+                    f'{float(kayit["teorik_uretim_kg"]):.3f}',
+                    f'{float(kayit["uretim_firesi_kg"]):.3f}',
+                    f'{float(kayit["net_uretim_kg"]):.3f}',
+                ),
+                tags=(
+                    "even"
+                    if index % 2 == 0
+                    else "odd",
+                ),
             )
 
-            ctk.CTkButton(
-                satir,
-                text="SİL",
-                width=65,
-                fg_color="gray35",
-                command=lambda kayit_id=kayit["id"]:
-                    self.uretim_sil(kayit_id)
-            ).pack(
-                side="right",
-                padx=(5, 10)
-            )
+        scrollbar = ttk.Scrollbar(
+            tree_area,
+            orient="vertical",
+            command=self.uretim_tree.yview,
+        )
+        self.uretim_tree.configure(
+            yscrollcommand=scrollbar.set,
+        )
 
-            pdf_button = ctk.CTkButton(
-                satir,
-                text="PDF AL",
-                width=90,
-                height=34,
-                command=lambda kayit_id=kayit["id"]:
-                    self.uretim_pdf_raporu(kayit_id)
-            )
-            pdf_button.pack(
-                side="right",
-                padx=(5, 8),
-                pady=8
-            )
+        self.uretim_tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+        )
 
-            ctk.CTkLabel(
-                satir,
-                text=bilgi,
-                justify="left",
-                anchor="w"
-            ).pack(
-                side="left",
-                fill="x",
-                expand=True,
-                padx=12,
-                pady=10
-            )
+        self.uretim_tree.bind(
+            "<Double-1>",
+            lambda _event: self.uretim_secili_pdf(),
+        )
 
     def uretim_sil(self, kayit_id):
         cevap = messagebox.askyesno(
@@ -2745,6 +3082,7 @@ class RedboxOS(ctk.CTk):
             conn.commit()
             conn.close()
 
+            self.uretim_ozet_guncelle()
             self.uretim_listele()
 
         except Exception as hata:
