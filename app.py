@@ -4234,23 +4234,31 @@ class RedboxOS(ctk.CTk):
 
         form = ctk.CTkScrollableFrame(
             ana_frame,
-            width=410,
-            label_text=""
-        )
-        form.pack(
-            side="left",
-            fill="y",
-            padx=(10, 5),
-            pady=10
+            label_text="",
         )
 
         liste = ctk.CTkFrame(ana_frame)
         liste.pack(
-            side="right",
             fill="both",
             expand=True,
-            padx=(5, 10),
-            pady=10
+            padx=10,
+            pady=10,
+        )
+
+        self.sevkiyat_form_panel = form
+        self.sevkiyat_liste_panel = liste
+
+        ctk.CTkButton(
+            form,
+            text="← KAYITLARA DÖN",
+            width=160,
+            height=36,
+            fg_color="#4B5563",
+            command=self.sevkiyat_liste_goster,
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(15, 0),
         )
 
         ctk.CTkLabel(
@@ -4267,10 +4275,10 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             form,
-            text="Müşteri / Sevk Noktası"
-        ).pack(
+            text="Müşteri / Sevk Noktası",
+            width=350,
             anchor="w",
-            padx=25,
+        ).pack(
             pady=(5, 2)
         )
 
@@ -4302,7 +4310,6 @@ class RedboxOS(ctk.CTk):
             )
         )
         self.sevkiyat_musteri.pack(
-            padx=25,
             pady=(0, 5)
         )
         self.sevkiyat_musteri.set("")
@@ -4319,10 +4326,10 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             form,
-            text="Mamul Stok / Ürün Lotu"
-        ).pack(
+            text="Mamul Stok / Ürün Lotu",
+            width=350,
             anchor="w",
-            padx=25,
+        ).pack(
             pady=(5, 2)
         )
 
@@ -4367,7 +4374,6 @@ class RedboxOS(ctk.CTk):
             state="readonly"
         )
         self.sevkiyat_stok_secim.pack(
-            padx=25,
             pady=(0, 10)
         )
         self.sevkiyat_stok_secim.set("")
@@ -4436,10 +4442,10 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             form,
-            text="Soğuk Zincir"
-        ).pack(
+            text="Soğuk Zincir",
+            width=350,
             anchor="w",
-            padx=25,
+        ).pack(
             pady=(5, 2)
         )
 
@@ -4450,7 +4456,6 @@ class RedboxOS(ctk.CTk):
             state="readonly"
         )
         self.soguk_zincir_secim.pack(
-            padx=25,
             pady=(0, 5)
         )
         self.soguk_zincir_secim.set("EVET")
@@ -4472,20 +4477,129 @@ class RedboxOS(ctk.CTk):
             pady=(15, 15)
         )
 
-        ctk.CTkLabel(
+        ust = ctk.CTkFrame(
             liste,
-            text="SON SEVKİYAT KAYITLARI",
-            font=("Arial", 18, "bold")
-        ).pack(pady=(20, 15))
+            fg_color="transparent",
+        )
+        ust.pack(
+            fill="x",
+            padx=20,
+            pady=(20, 10),
+        )
 
-        self.sevkiyat_liste_frame = ctk.CTkScrollableFrame(
+        ctk.CTkLabel(
+            ust,
+            text="SEVKİYAT KAYITLARI",
+            font=("Arial", 22, "bold"),
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            ust,
+            text="+ YENİ SEVKİYAT",
+            width=170,
+            height=40,
+            font=("Arial", 13, "bold"),
+            command=self.sevkiyat_form_goster,
+        ).pack(side="right")
+
+        kpi_alani = ctk.CTkFrame(
+            liste,
+            fg_color="transparent",
+        )
+        kpi_alani.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 12),
+        )
+
+        self.sevkiyat_kpi_labels = []
+
+        for baslik in (
+            "TOPLAM KAYIT",
+            "TOPLAM PAKET",
+            "SEVK EDİLEN KG",
+            "MÜŞTERİ SAYISI",
+        ):
+            kart = ctk.CTkFrame(
+                kpi_alani,
+                height=82,
+            )
+            kart.pack(
+                side="left",
+                fill="x",
+                expand=True,
+                padx=5,
+            )
+            kart.pack_propagate(False)
+
+            ctk.CTkLabel(
+                kart,
+                text=baslik,
+                font=("Arial", 11, "bold"),
+                text_color="#A3A3A3",
+            ).pack(pady=(12, 3))
+
+            deger = ctk.CTkLabel(
+                kart,
+                text="0",
+                font=("Arial", 21, "bold"),
+            )
+            deger.pack()
+            self.sevkiyat_kpi_labels.append(deger)
+
+        araclar = ctk.CTkFrame(
+            liste,
+            fg_color="transparent",
+        )
+        araclar.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 12),
+        )
+
+        self.sevkiyat_arama = ctk.CTkEntry(
+            araclar,
+            placeholder_text=(
+                "Tarih, müşteri, plaka, belge veya lot ara..."
+            ),
+            height=38,
+        )
+        self.sevkiyat_arama.pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 8),
+        )
+        self.sevkiyat_arama.bind(
+            "<KeyRelease>",
+            lambda event: self.sevkiyat_listele(),
+        )
+
+        ctk.CTkButton(
+            araclar,
+            text="TEMİZLE",
+            width=95,
+            height=38,
+            fg_color="#4B5563",
+            command=self.sevkiyat_filtre_temizle,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            araclar,
+            text="SEÇİLİ PDF",
+            width=125,
+            height=38,
+            command=self.sevkiyat_secili_pdf,
+        ).pack(side="left")
+
+        self.sevkiyat_liste_frame = ctk.CTkFrame(
             liste
         )
         self.sevkiyat_liste_frame.pack(
             fill="both",
             expand=True,
-            padx=15,
-            pady=(0, 15)
+            padx=20,
+            pady=(0, 20),
         )
 
         self.sevkiyat_listele()
@@ -4765,117 +4879,362 @@ class RedboxOS(ctk.CTk):
             )
 
 
+    def sevkiyat_form_goster(self):
+        self.sevkiyat_liste_panel.pack_forget()
+        self.sevkiyat_form_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+
+    def sevkiyat_liste_goster(self):
+        self.sevkiyat_form_panel.pack_forget()
+        self.sevkiyat_liste_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+        self.sevkiyat_listele()
+
+    def sevkiyat_filtre_temizle(self):
+        self.sevkiyat_arama.delete(0, "end")
+        self.sevkiyat_listele()
+
+    def sevkiyat_secili_pdf(self):
+        secim = self.sevkiyat_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Kayıt Seçilmedi",
+                "PDF için tablodan bir sevkiyat kaydı seçin.",
+            )
+            return
+
+        self.sevkiyat_pdf_raporu(int(secim[0]))
+
+    def sevkiyat_ozet_guncelle(self, arama=""):
+        like = f"%{arama.casefold()}%"
+        conn = get_connection()
+        conn.create_function(
+            "TR_CASEFOLD",
+            1,
+            lambda value: (
+                str(value).casefold()
+                if value is not None
+                else ""
+            ),
+        )
+
+        try:
+            ozet = conn.execute("""
+                SELECT
+                    COUNT(DISTINCT s.id) AS toplam_kayit,
+                    COALESCE(
+                        SUM(sk.paket_adedi),
+                        0
+                    ) AS toplam_paket,
+                    COALESCE(
+                        SUM(sk.sevk_kg),
+                        0
+                    ) AS toplam_kg,
+                    COUNT(
+                        DISTINCT COALESCE(
+                            s.musteri_id,
+                            s.musteri
+                        )
+                    ) AS musteri_sayisi
+                FROM sevkiyat s
+                LEFT JOIN sevkiyat_kalemleri sk
+                  ON sk.sevkiyat_id = s.id
+                LEFT JOIN paketleme p
+                  ON p.id = sk.paketleme_id
+                LEFT JOIN uretim u
+                  ON u.id = p.uretim_id
+                WHERE (
+                    ? = ''
+                    OR TR_CASEFOLD(
+                        s.sevkiyat_tarihi
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(s.musteri, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(s.arac_plaka, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(s.belge_no, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(u.urun_lot_no, '')
+                    ) LIKE ?
+                )
+            """, (
+                arama,
+                like,
+                like,
+                like,
+                like,
+                like,
+            )).fetchone()
+        finally:
+            conn.close()
+
+        degerler = (
+            str(int(ozet["toplam_kayit"] or 0)),
+            f'{int(ozet["toplam_paket"] or 0):,}'.replace(
+                ",",
+                ".",
+            ),
+            f'{float(ozet["toplam_kg"] or 0):.3f}',
+            str(int(ozet["musteri_sayisi"] or 0)),
+        )
+
+        for label, deger in zip(
+            self.sevkiyat_kpi_labels,
+            degerler,
+        ):
+            label.configure(text=deger)
+
     def sevkiyat_listele(self):
         for widget in (
             self.sevkiyat_liste_frame.winfo_children()
         ):
             widget.destroy()
 
+        arama = ""
+        if hasattr(self, "sevkiyat_arama"):
+            arama = self.sevkiyat_arama.get().strip()
+
+        like = f"%{arama.casefold()}%"
         conn = get_connection()
+        conn.create_function(
+            "TR_CASEFOLD",
+            1,
+            lambda value: (
+                str(value).casefold()
+                if value is not None
+                else ""
+            ),
+        )
 
-        kayitlar = conn.execute("""
-            SELECT
-                s.id,
-                s.sevkiyat_tarihi,
-                s.musteri,
-                s.arac_plaka,
-                s.belge_no,
-                s.soguk_zincir,
-                s.aciklama,
-                SUM(sk.paket_adedi) AS toplam_paket,
-                SUM(sk.sevk_kg) AS toplam_kg,
-                COUNT(DISTINCT u.urun_lot_no) AS lot_sayisi
-            FROM sevkiyat s
-            JOIN sevkiyat_kalemleri sk
-              ON sk.sevkiyat_id = s.id
-            JOIN paketleme p
-              ON p.id = sk.paketleme_id
-            JOIN uretim u
-              ON u.id = p.uretim_id
-            GROUP BY
-                s.id,
-                s.sevkiyat_tarihi,
-                s.musteri,
-                s.arac_plaka,
-                s.belge_no,
-                s.soguk_zincir,
-                s.aciklama
-            ORDER BY s.id DESC
-            LIMIT 100
-        """).fetchall()
+        try:
+            kayitlar = conn.execute("""
+                SELECT
+                    s.id,
+                    s.sevkiyat_tarihi,
+                    s.musteri,
+                    s.arac_plaka,
+                    s.belge_no,
+                    s.soguk_zincir,
+                    COALESCE(
+                        SUM(sk.paket_adedi),
+                        0
+                    ) AS toplam_paket,
+                    COALESCE(
+                        SUM(sk.sevk_kg),
+                        0
+                    ) AS toplam_kg,
+                    COUNT(
+                        DISTINCT u.urun_lot_no
+                    ) AS lot_sayisi
+                FROM sevkiyat s
+                LEFT JOIN sevkiyat_kalemleri sk
+                  ON sk.sevkiyat_id = s.id
+                LEFT JOIN paketleme p
+                  ON p.id = sk.paketleme_id
+                LEFT JOIN uretim u
+                  ON u.id = p.uretim_id
+                WHERE (
+                    ? = ''
+                    OR TR_CASEFOLD(
+                        s.sevkiyat_tarihi
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(s.musteri, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(s.arac_plaka, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(s.belge_no, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(u.urun_lot_no, '')
+                    ) LIKE ?
+                )
+                GROUP BY
+                    s.id,
+                    s.sevkiyat_tarihi,
+                    s.musteri,
+                    s.arac_plaka,
+                    s.belge_no,
+                    s.soguk_zincir
+                ORDER BY s.id DESC
+                LIMIT 200
+            """, (
+                arama,
+                like,
+                like,
+                like,
+                like,
+                like,
+            )).fetchall()
+        finally:
+            conn.close()
 
-        conn.close()
+        self.sevkiyat_ozet_guncelle(arama)
 
-        if not kayitlar:
-            ctk.CTkLabel(
-                self.sevkiyat_liste_frame,
-                text="Henüz sevkiyat kaydı yok."
-            ).pack(pady=20)
-            return
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure(
+            "Shipment.Treeview",
+            background="#292929",
+            foreground="#F3F4F6",
+            fieldbackground="#292929",
+            borderwidth=0,
+            rowheight=36,
+            font=("Arial", 12),
+        )
+        style.configure(
+            "Shipment.Treeview.Heading",
+            background="#1F2937",
+            foreground="#F9FAFB",
+            relief="flat",
+            font=("Arial", 11, "bold"),
+        )
+        style.map(
+            "Shipment.Treeview",
+            background=[("selected", "#1F6AA5")],
+            foreground=[("selected", "#FFFFFF")],
+        )
 
-        for kayit in kayitlar:
-            kart = ctk.CTkFrame(
-                self.sevkiyat_liste_frame
+        tree_area = ctk.CTkFrame(
+            self.sevkiyat_liste_frame
+        )
+        tree_area.pack(
+            fill="both",
+            expand=True,
+        )
+        tree_area.grid_rowconfigure(0, weight=1)
+        tree_area.grid_columnconfigure(0, weight=1)
+
+        columns = (
+            "tarih",
+            "musteri",
+            "paket",
+            "kg",
+            "lot",
+            "plaka",
+            "belge",
+            "soguk",
+        )
+
+        self.sevkiyat_tree = ttk.Treeview(
+            tree_area,
+            columns=columns,
+            show="headings",
+            style="Shipment.Treeview",
+            selectmode="browse",
+        )
+
+        headings = (
+            ("tarih", "TARİH", 95, "w"),
+            ("musteri", "MÜŞTERİ / SEVK NOKTASI", 210, "w"),
+            ("paket", "TOPLAM PAKET", 105, "e"),
+            ("kg", "SEVK KG", 95, "e"),
+            ("lot", "LOT SAYISI", 85, "center"),
+            ("plaka", "ARAÇ PLAKA", 105, "center"),
+            ("belge", "BELGE NO", 115, "w"),
+            ("soguk", "SOĞUK ZİNCİR", 105, "center"),
+        )
+
+        for column, title, width, anchor in headings:
+            self.sevkiyat_tree.heading(
+                column,
+                text=title,
+                anchor=anchor,
             )
-            kart.pack(
-                fill="x",
-                padx=5,
-                pady=5
+            self.sevkiyat_tree.column(
+                column,
+                width=width,
+                minwidth=70,
+                anchor=anchor,
+                stretch=True,
             )
 
-            soguk = (
-                "EVET"
-                if kayit["soguk_zincir"]
-                else "HAYIR"
+        self.sevkiyat_tree.tag_configure(
+            "even",
+            background="#292929",
+        )
+        self.sevkiyat_tree.tag_configure(
+            "odd",
+            background="#303030",
+        )
+
+        for index, kayit in enumerate(kayitlar):
+            self.sevkiyat_tree.insert(
+                "",
+                "end",
+                iid=str(kayit["id"]),
+                values=(
+                    kayit["sevkiyat_tarihi"],
+                    kayit["musteri"] or "-",
+                    int(kayit["toplam_paket"] or 0),
+                    f'{float(kayit["toplam_kg"] or 0):.3f}',
+                    int(kayit["lot_sayisi"] or 0),
+                    kayit["arac_plaka"] or "-",
+                    kayit["belge_no"] or "-",
+                    (
+                        "EVET"
+                        if kayit["soguk_zincir"]
+                        else "HAYIR"
+                    ),
+                ),
+                tags=(
+                    "even"
+                    if index % 2 == 0
+                    else "odd",
+                ),
             )
 
-            plaka = (
-                kayit["arac_plaka"]
-                if kayit["arac_plaka"]
-                else "-"
-            )
+        vertical = ttk.Scrollbar(
+            tree_area,
+            orient="vertical",
+            command=self.sevkiyat_tree.yview,
+        )
+        horizontal = ttk.Scrollbar(
+            tree_area,
+            orient="horizontal",
+            command=self.sevkiyat_tree.xview,
+        )
 
-            belge_no = (
-                kayit["belge_no"]
-                if kayit["belge_no"]
-                else "-"
-            )
+        self.sevkiyat_tree.configure(
+            yscrollcommand=vertical.set,
+            xscrollcommand=horizontal.set,
+        )
 
-            metin = (
-                f'{kayit["sevkiyat_tarihi"]} | '
-                f'{kayit["musteri"]}\n'
-                f'{kayit["toplam_paket"]} paket | '
-                f'{kayit["toplam_kg"]:.3f} kg | '
-                f'{kayit["lot_sayisi"]} lot\n'
-                f'Araç Plaka: {plaka}\n'
-                f'Belge No: {belge_no}\n'
-                f'Soğuk Zincir: {soguk}'
-            )
+        self.sevkiyat_tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+        vertical.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+        )
+        horizontal.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+        )
 
-            ctk.CTkButton(
-                kart,
-                text="PDF AL",
-                width=75,
-                command=lambda kayit_id=kayit["id"]:
-                    self.sevkiyat_pdf_raporu(kayit_id)
-            ).pack(
-                side="right",
-                padx=10,
-                pady=12
-            )
-
-            ctk.CTkLabel(
-                kart,
-                text=metin,
-                justify="left",
-                anchor="w"
-            ).pack(
-                side="left",
-                fill="x",
-                expand=True,
-                padx=15,
-                pady=12
-            )
+        self.sevkiyat_tree.bind(
+            "<Double-1>",
+            lambda event: self.sevkiyat_secili_pdf(),
+        )
 
     def sevkiyat_raporu(self):
         self.show_page(
