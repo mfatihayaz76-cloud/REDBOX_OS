@@ -1232,12 +1232,17 @@ class RedboxOS(ctk.CTk):
             pass
 
     def form_entry(self, parent, label, default=""):
-        ctk.CTkLabel(parent, text=label).pack(
-            anchor="w", padx=25, pady=(5, 2)
+        ctk.CTkLabel(
+            parent,
+            text=label,
+            width=350,
+            anchor="w",
+        ).pack(
+            pady=(5, 2)
         )
 
         entry = ctk.CTkEntry(parent, width=350)
-        entry.pack(padx=25, pady=(0, 5))
+        entry.pack(pady=(0, 5))
 
         if default:
             entry.insert(0, default)
@@ -3112,18 +3117,34 @@ class RedboxOS(ctk.CTk):
         )
         form.pack(
             side="left",
-            fill="y",
-            padx=(10, 5),
-            pady=10
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
         )
+        self.paketleme_form_panel = form
 
         liste = ctk.CTkFrame(ana_frame)
         liste.pack(
             side="right",
             fill="both",
             expand=True,
-            padx=(5, 10),
-            pady=10
+            padx=10,
+            pady=10,
+        )
+        self.paketleme_liste_panel = liste
+
+        ctk.CTkButton(
+            form,
+            text="← KAYITLARA DÖN",
+            width=160,
+            height=36,
+            fg_color="#4B5563",
+            command=self.paketleme_liste_goster,
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(15, 0),
         )
 
         ctk.CTkLabel(
@@ -3140,10 +3161,10 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             form,
-            text="Üretim Lotu"
-        ).pack(
+            text="Üretim Lotu",
+            width=350,
             anchor="w",
-            padx=25,
+        ).pack(
             pady=(5, 2)
         )
 
@@ -3178,7 +3199,6 @@ class RedboxOS(ctk.CTk):
             state="readonly"
         )
         self.paketleme_lot_secim.pack(
-            padx=25,
             pady=(0, 10)
         )
         self.paketleme_lot_secim.set("")
@@ -3194,18 +3214,20 @@ class RedboxOS(ctk.CTk):
             justify="left",
             font=("Arial", 14, "bold")
         )
-        self.paketleme_stok_label.pack(
+        self.paketleme_stok_label.configure(
+            width=350,
             anchor="w",
-            padx=25,
+        )
+        self.paketleme_stok_label.pack(
             pady=(5, 15)
         )
 
         ctk.CTkLabel(
             form,
-            text="Ambalaj"
-        ).pack(
+            text="Ambalaj",
+            width=350,
             anchor="w",
-            padx=25,
+        ).pack(
             pady=(5, 2)
         )
 
@@ -3216,7 +3238,6 @@ class RedboxOS(ctk.CTk):
             command=self.paketleme_hesapla
         )
         self.ambalaj_secim.pack(
-            padx=25,
             pady=(0, 5)
         )
         self.ambalaj_secim.set("500 g")
@@ -3307,20 +3328,168 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             liste,
-            text="SON PAKETLEME KAYITLARI",
-            font=("Arial", 18, "bold")
-        ).pack(pady=(20, 15))
+            text="PAKETLEME KAYITLARI",
+            font=("Arial", 18, "bold"),
+        ).pack(
+            anchor="w",
+            padx=18,
+            pady=(16, 8),
+        )
 
-        self.paketleme_liste_frame = ctk.CTkScrollableFrame(
-            liste
+        summary = ctk.CTkFrame(
+            liste,
+            fg_color="transparent",
+        )
+        summary.pack(
+            fill="x",
+            padx=12,
+            pady=(0, 8),
+        )
+
+        self.paketleme_ozet_labels = {}
+
+        cards = (
+            ("kayit", "TOPLAM KAYIT", "0"),
+            ("paket", "TOPLAM PAKET", "0"),
+            ("kg", "PAKETLENEN", "0.000 kg"),
+            ("fire", "TOPLAM FİRE", "0.000 kg"),
+        )
+
+        for key, title, value in cards:
+            card = ctk.CTkFrame(
+                summary,
+                height=78,
+                corner_radius=10,
+            )
+            card.pack(
+                side="left",
+                fill="x",
+                expand=True,
+                padx=4,
+            )
+            card.pack_propagate(False)
+
+            ctk.CTkLabel(
+                card,
+                text=title,
+                font=("Arial", 10, "bold"),
+                text_color="#9CA3AF",
+            ).pack(
+                anchor="w",
+                padx=12,
+                pady=(12, 2),
+            )
+
+            label = ctk.CTkLabel(
+                card,
+                text=value,
+                font=("Arial", 16, "bold"),
+            )
+            label.pack(
+                anchor="w",
+                padx=12,
+            )
+            self.paketleme_ozet_labels[key] = label
+
+        toolbar = ctk.CTkFrame(
+            liste,
+            corner_radius=8,
+        )
+        toolbar.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 8),
+        )
+
+        self.paketleme_arama = ctk.CTkEntry(
+            toolbar,
+            width=300,
+            height=36,
+            placeholder_text=(
+                "Tarih, üretim lotu veya ambalaj ara..."
+            ),
+        )
+        self.paketleme_arama.pack(
+            side="left",
+            padx=(10, 5),
+            pady=10,
+        )
+        self.paketleme_arama.bind(
+            "<KeyRelease>",
+            lambda _event: self.paketleme_listele(),
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="TEMİZLE",
+            width=85,
+            height=36,
+            fg_color="#4B5563",
+            command=self.paketleme_filtre_temizle,
+        ).pack(
+            side="left",
+            padx=5,
+            pady=10,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="+ YENİ PAKETLEME",
+            width=160,
+            height=36,
+            font=("Arial", 11, "bold"),
+            command=self.paketleme_form_goster,
+        ).pack(
+            side="right",
+            padx=(5, 10),
+            pady=10,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="SEÇİLİ PDF",
+            width=110,
+            height=36,
+            command=self.paketleme_secili_pdf,
+        ).pack(
+            side="right",
+            padx=5,
+            pady=10,
+        )
+
+        self.paketleme_liste_frame = ctk.CTkFrame(
+            liste,
+            corner_radius=8,
         )
         self.paketleme_liste_frame.pack(
             fill="both",
             expand=True,
             padx=15,
-            pady=(0, 15)
+            pady=(0, 15),
         )
 
+        self.paketleme_ozet_guncelle()
+        self.paketleme_listele()
+        self.paketleme_form_panel.pack_forget()
+
+    def paketleme_form_goster(self):
+        self.paketleme_liste_panel.pack_forget()
+        self.paketleme_form_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+
+    def paketleme_liste_goster(self):
+        self.paketleme_form_panel.pack_forget()
+        self.paketleme_liste_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+        self.paketleme_ozet_guncelle()
         self.paketleme_listele()
 
 
@@ -3664,109 +3833,249 @@ class RedboxOS(ctk.CTk):
             )
 
 
+    def paketleme_ozet_guncelle(self):
+        conn = get_connection()
+        try:
+            row = conn.execute("""
+                SELECT
+                    COUNT(*) AS kayit_sayisi,
+                    COALESCE(SUM(paket_adedi), 0) AS paket_adedi,
+                    COALESCE(SUM(paketlenen_kg), 0) AS paketlenen_kg,
+                    COALESCE(
+                        SUM(paketleme_firesi_kg),
+                        0
+                    ) AS fire_kg
+                FROM paketleme
+            """).fetchone()
+        finally:
+            conn.close()
+
+        self.paketleme_ozet_labels["kayit"].configure(
+            text=str(int(row["kayit_sayisi"])),
+        )
+        self.paketleme_ozet_labels["paket"].configure(
+            text=str(int(row["paket_adedi"])),
+        )
+        self.paketleme_ozet_labels["kg"].configure(
+            text=f'{float(row["paketlenen_kg"]):.3f} kg',
+        )
+        self.paketleme_ozet_labels["fire"].configure(
+            text=f'{float(row["fire_kg"]):.3f} kg',
+        )
+
+    def paketleme_filtre_temizle(self):
+        self.paketleme_arama.delete(0, "end")
+        self.paketleme_listele()
+
+    def paketleme_secili_pdf(self):
+        secim = self.paketleme_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Kayıt Seçilmedi",
+                "PDF için tablodan bir paketleme kaydı seçin.",
+            )
+            return
+
+        self.paketleme_pdf_raporu(int(secim[0]))
+
     def paketleme_listele(self):
         for widget in (
             self.paketleme_liste_frame.winfo_children()
         ):
             widget.destroy()
 
+        arama = ""
+        if hasattr(self, "paketleme_arama"):
+            arama = self.paketleme_arama.get().strip()
+
+        like = f"%{arama}%"
+
         conn = get_connection()
+        try:
+            kayitlar = conn.execute("""
+                SELECT
+                    p.id,
+                    p.paketleme_tarihi,
+                    u.urun_lot_no,
+                    p.ambalaj_gram,
+                    p.paket_adedi,
+                    p.koli_ici_adet,
+                    p.paketlenen_kg,
+                    p.paketleme_firesi_kg
+                FROM paketleme p
+                JOIN uretim u
+                  ON u.id = p.uretim_id
+                WHERE (
+                    ? = ''
+                    OR p.paketleme_tarihi LIKE ?
+                    OR u.urun_lot_no LIKE ?
+                    OR CAST(p.ambalaj_gram AS TEXT) LIKE ?
+                )
+                ORDER BY p.id DESC
+                LIMIT 200
+            """, (
+                arama,
+                like,
+                like,
+                like,
+            )).fetchall()
+        finally:
+            conn.close()
 
-        kayitlar = conn.execute("""
-            SELECT
-                p.id,
-                p.paketleme_tarihi,
-                u.urun_lot_no,
-                p.ambalaj_gram,
-                p.paket_adedi,
-                p.koli_ici_adet,
-                p.paketlenen_kg,
-                p.paketleme_firesi_kg
-            FROM paketleme p
-            JOIN uretim u
-              ON u.id = p.uretim_id
-            ORDER BY p.id DESC
-            LIMIT 100
-        """).fetchall()
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Packaging.Treeview",
+            background="#2b2b2b",
+            fieldbackground="#2b2b2b",
+            foreground="#e5e7eb",
+            rowheight=38,
+            borderwidth=0,
+            font=("Arial", 11),
+        )
+        style.configure(
+            "Packaging.Treeview.Heading",
+            background="#343434",
+            foreground="#e5e7eb",
+            relief="flat",
+            font=("Arial", 11, "bold"),
+        )
+        style.map(
+            "Packaging.Treeview",
+            background=[("selected", "#1f6aa5")],
+            foreground=[("selected", "#ffffff")],
+        )
 
-        conn.close()
+        ctk.CTkLabel(
+            self.paketleme_liste_frame,
+            text=f"GÖSTERİLEN KAYIT: {len(kayitlar)}",
+            font=("Arial", 11, "bold"),
+            text_color="#9CA3AF",
+        ).pack(
+            anchor="w",
+            padx=12,
+            pady=(10, 5),
+        )
 
-        if not kayitlar:
-            ctk.CTkLabel(
-                self.paketleme_liste_frame,
-                text="Henüz paketleme kaydı yok."
-            ).pack(pady=20)
-            return
+        tree_area = ctk.CTkFrame(
+            self.paketleme_liste_frame,
+            fg_color="transparent",
+        )
+        tree_area.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=(0, 10),
+        )
+        tree_area.grid_rowconfigure(0, weight=1)
+        tree_area.grid_columnconfigure(0, weight=1)
 
-        for kayit in kayitlar:
-            kart = ctk.CTkFrame(
-                self.paketleme_liste_frame
+        columns = (
+            "tarih",
+            "lot",
+            "ambalaj",
+            "paket",
+            "koli_ici",
+            "kg",
+            "fire",
+        )
+
+        self.paketleme_tree = ttk.Treeview(
+            tree_area,
+            columns=columns,
+            show="headings",
+            style="Packaging.Treeview",
+            selectmode="browse",
+        )
+
+        headings = (
+            ("tarih", "TARİH", 95, "w"),
+            ("lot", "ÜRETİM LOTU", 120, "w"),
+            ("ambalaj", "AMBALAJ", 90, "center"),
+            ("paket", "PAKET", 75, "e"),
+            ("koli_ici", "KOLİ İÇİ", 75, "e"),
+            ("kg", "PAKETLENEN KG", 115, "e"),
+            ("fire", "FİRE KG", 80, "e"),
+        )
+
+        for column, title, width, anchor in headings:
+            self.paketleme_tree.heading(
+                column,
+                text=title,
+                anchor=anchor,
             )
-            kart.pack(
-                fill="x",
-                padx=5,
-                pady=5
+            self.paketleme_tree.column(
+                column,
+                width=width,
+                minwidth=60,
+                anchor=anchor,
+                stretch=True,
             )
 
+        self.paketleme_tree.tag_configure(
+            "even",
+            background="#292929",
+        )
+        self.paketleme_tree.tag_configure(
+            "odd",
+            background="#303030",
+        )
+
+        for index, kayit in enumerate(kayitlar):
+            gram = int(kayit["ambalaj_gram"])
             ambalaj = (
                 "500 g"
-                if kayit["ambalaj_gram"] == 500
+                if gram == 500
                 else "2.5 kg"
-                if kayit["ambalaj_gram"] == 2500
-                else f'{kayit["ambalaj_gram"]} g'
+                if gram == 2500
+                else f"{gram} g"
             )
 
-            koli_ici = kayit["koli_ici_adet"]
-
-            if koli_ici and int(koli_ici) > 0:
-                tam_koli = (
-                    int(kayit["paket_adedi"])
-                    // int(koli_ici)
-                )
-                acik_paket = (
-                    int(kayit["paket_adedi"])
-                    % int(koli_ici)
-                )
-                koli_bilgi = (
-                    f"{tam_koli} koli + "
-                    f"{acik_paket} açık paket"
-                )
-            else:
-                koli_bilgi = "Koli bilgisi yok"
-
-            metin = (
-                f'{kayit["paketleme_tarihi"]} | '
-                f'LOT {kayit["urun_lot_no"]}\n'
-                f'{ambalaj} × {kayit["paket_adedi"]} adet | '
-                f'{koli_bilgi}\n'
-                f'{kayit["paketlenen_kg"]:.3f} kg | '
-                f'Fire {kayit["paketleme_firesi_kg"]:.3f} kg'
+            self.paketleme_tree.insert(
+                "",
+                "end",
+                iid=str(kayit["id"]),
+                values=(
+                    kayit["paketleme_tarihi"],
+                    kayit["urun_lot_no"],
+                    ambalaj,
+                    int(kayit["paket_adedi"]),
+                    int(kayit["koli_ici_adet"] or 0),
+                    f'{float(kayit["paketlenen_kg"]):.3f}',
+                    f'{float(kayit["paketleme_firesi_kg"]):.3f}',
+                ),
+                tags=(
+                    "even"
+                    if index % 2 == 0
+                    else "odd",
+                ),
             )
 
-            ctk.CTkButton(
-                kart,
-                text="PDF AL",
-                width=75,
-                command=lambda kayit_id=kayit["id"]:
-                    self.paketleme_pdf_raporu(kayit_id)
-            ).pack(
-                side="right",
-                padx=10,
-                pady=12
-            )
+        scrollbar = ttk.Scrollbar(
+            tree_area,
+            orient="vertical",
+            command=self.paketleme_tree.yview,
+        )
+        self.paketleme_tree.configure(
+            yscrollcommand=scrollbar.set,
+        )
 
-            ctk.CTkLabel(
-                kart,
-                text=metin,
-                justify="left",
-                anchor="w"
-            ).pack(
-                side="left",
-                fill="x",
-                expand=True,
-                padx=15,
-                pady=12
-            )
+        self.paketleme_tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+        )
+
+        self.paketleme_tree.bind(
+            "<Double-1>",
+            lambda _event: self.paketleme_secili_pdf(),
+        )
 
     def sevkiyat(self):
         self.show_page(
