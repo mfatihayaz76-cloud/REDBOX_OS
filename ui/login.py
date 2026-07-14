@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import multiprocessing
 import os
 import sqlite3
 from datetime import datetime
@@ -495,8 +496,50 @@ class LoginWindow(ctk.CTk):
         finally:
             conn.close()
 
-        self.destroy()
+        self.withdraw()
+        self.quit()
 
     def _kapat(self):
         self.authenticated_user = None
-        self.destroy()
+        self.withdraw()
+        self.quit()
+
+
+def _login_process(send_connection):
+    window = LoginWindow()
+    window.mainloop()
+
+    try:
+        send_connection.send(window.authenticated_user)
+    finally:
+        send_connection.close()
+        window.destroy()
+
+
+def authenticate_user():
+    context = multiprocessing.get_context("spawn")
+    receive_connection, send_connection = context.Pipe(
+        duplex=False
+    )
+
+    process = context.Process(
+        target=_login_process,
+        args=(send_connection,),
+    )
+    process.start()
+    send_connection.close()
+
+    try:
+        current_user = receive_connection.recv()
+    except EOFError:
+        current_user = None
+    finally:
+        receive_connection.close()
+        process.join()
+
+    if process.exitcode != 0:
+        raise RuntimeError(
+            "Giriş ekranı güvenli şekilde başlatılamadı."
+        )
+
+    return current_user

@@ -42,7 +42,7 @@ from ui.system import SystemPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.controllers.dashboard_controller import DashboardController
 from ui.order_calculator import OrderCalculatorWindow
-from ui.login import LoginWindow
+from ui.login import authenticate_user
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -8264,9 +8264,8 @@ class RedboxOS(ctk.CTk):
 if __name__ == "__main__":
     init_database()
 
-    login = LoginWindow()
-    login.mainloop()
+    current_user = authenticate_user()
 
-    if login.authenticated_user is not None:
-        app = RedboxOS(login.authenticated_user)
+    if current_user is not None:
+        app = RedboxOS(current_user)
         app.mainloop()
