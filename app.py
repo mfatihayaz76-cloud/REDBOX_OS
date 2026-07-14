@@ -42,15 +42,17 @@ from ui.system import SystemPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.controllers.dashboard_controller import DashboardController
 from ui.order_calculator import OrderCalculatorWindow
+from ui.login import LoginWindow
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
 class RedboxOS(ctk.CTk):
-    def __init__(self):
+    def __init__(self, current_user):
         super().__init__()
 
+        self.current_user = current_user
         self.title("REDBOX OS")
         self.geometry("1380x820")
         self.minsize(1180, 700)
@@ -112,9 +114,26 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             self.sidebar,
-            text="REDBOX OS • ÇEKİRDEK v0.2",
+            text=f'AKTİF: {self.current_user["ad_soyad"]}',
+            font=("Arial", 11, "bold"),
+            text_color="#22C55E",
+        ).grid(
+            row=14,
+            column=0,
+            padx=20,
+            pady=(12, 2),
+        )
+
+        ctk.CTkLabel(
+            self.sidebar,
+            text="REDBOX OS • ÇEKİRDEK v0.3",
             font=("Arial", 11)
-        ).grid(row=14, column=0, padx=20, pady=20)
+        ).grid(
+            row=15,
+            column=0,
+            padx=20,
+            pady=(2, 16),
+        )
 
         self.content = ctk.CTkFrame(
             self,
@@ -8244,5 +8263,10 @@ class RedboxOS(ctk.CTk):
 
 if __name__ == "__main__":
     init_database()
-    app = RedboxOS()
-    app.mainloop()
+
+    login = LoginWindow()
+    login.mainloop()
+
+    if login.authenticated_user is not None:
+        app = RedboxOS(login.authenticated_user)
+        app.mainloop()

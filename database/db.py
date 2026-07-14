@@ -351,6 +351,21 @@ def init_database():
                 REFERENCES personeller(id),
             UNIQUE(personel_id, yetki_kodu)
         );
+
+        CREATE TABLE IF NOT EXISTS kullanici_hesaplari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            personel_id INTEGER NOT NULL UNIQUE,
+            kullanici_adi TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            parola_hash TEXT NOT NULL,
+            parola_tuzu TEXT NOT NULL,
+            iterasyon INTEGER NOT NULL,
+            yonetici INTEGER NOT NULL DEFAULT 0,
+            aktif INTEGER NOT NULL DEFAULT 1,
+            son_giris_zamani TEXT,
+            kayit_zamani TEXT NOT NULL,
+            FOREIGN KEY (personel_id)
+                REFERENCES personeller(id)
+        );
     """)
 
     # REDBOX OS fresh-install business seed.
