@@ -53,6 +53,11 @@ class RedboxOS(ctk.CTk):
         super().__init__()
 
         self.current_user = current_user
+        self.formul_yetkili = (
+            bool(current_user.get("yonetici"))
+            and current_user.get("ad_soyad") == "Fatih Ayaz"
+            and current_user.get("kullanici_adi", "").lower() == "fatih"
+        )
         self.title("REDBOX OS")
         self.geometry("1380x820")
         self.minsize(1180, 700)
@@ -95,7 +100,11 @@ class RedboxOS(ctk.CTk):
             ("SEVKİYAT", self.sevkiyat),
             ("SEVKİYAT RAPORU", self.sevkiyat_raporu),
             ("İZLENEBİLİRLİK", self.izlenebilirlik),
-            ("REÇETE", self.recete),
+            *(
+                [("REÇETE", self.recete)]
+                if self.formul_yetkili
+                else []
+            ),
             ("PERSONEL", self.personel),
             ("TEMİZLİK", self.temizlik),
             ("SİSTEM", self.sistem),
@@ -194,6 +203,19 @@ class RedboxOS(ctk.CTk):
         )
 
         self.ana_sayfa()
+
+    def formul_erisim_kontrolu(self):
+        if self.formul_yetkili:
+            return True
+
+        messagebox.showerror(
+            "Yetkisiz Erişim",
+            (
+                "1 parti üretim formülü yalnızca "
+                "Fatih Ayaz hesabına açıktır."
+            ),
+        )
+        return False
 
     def toggle_sidebar(self):
         if self.sidebar_visible:
@@ -6418,6 +6440,11 @@ class RedboxOS(ctk.CTk):
 
 
     def recete_verilerini_getir(self):
+        if not self.formul_yetkili:
+            raise PermissionError(
+                "1 parti üretim formülüne erişim yetkiniz yok."
+            )
+
         conn = get_connection()
 
         try:
@@ -6483,6 +6510,9 @@ class RedboxOS(ctk.CTk):
 
 
     def recete(self):
+        if not self.formul_erisim_kontrolu():
+            return
+
         self.show_page(
             "REÇETE MERKEZİ",
             (
@@ -6853,6 +6883,9 @@ class RedboxOS(ctk.CTk):
 
 
     def recete_revizyon_formu_ac(self):
+        if not self.formul_erisim_kontrolu():
+            return
+
         conn = None
 
         try:
@@ -7119,6 +7152,9 @@ class RedboxOS(ctk.CTk):
 
 
     def recete_revizyon_kaydet(self):
+        if not self.formul_erisim_kontrolu():
+            return
+
         state = getattr(
             self,
             "recete_revizyon_form_state",
