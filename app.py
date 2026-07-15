@@ -7192,76 +7192,88 @@ class RedboxOS(ctk.CTk):
             "Planlı temizlik görevleri ve gerçekleşme takibi"
         )
 
-        kontrol_frame = ctk.CTkFrame(self.content)
-        kontrol_frame.pack(
+        ana = ctk.CTkFrame(self.content)
+        ana.pack(
+            fill="both",
+            expand=True,
+            padx=40,
+            pady=(0, 30),
+        )
+
+        filtre = ctk.CTkFrame(ana)
+        filtre.pack(
             fill="x",
-            padx=20,
-            pady=(10, 10)
+            padx=10,
+            pady=(10, 12),
         )
 
         ctk.CTkLabel(
-            kontrol_frame,
+            filtre,
             text="PLANLI TEMİZLİK GÖREVLERİ",
-            font=("Arial", 20, "bold")
-        ).grid(
-            row=0,
-            column=0,
-            columnspan=4,
-            sticky="w",
-            padx=15,
-            pady=(15, 10)
+            font=("Arial", 19, "bold"),
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(15, 10),
         )
 
-        ctk.CTkLabel(
-            kontrol_frame,
-            text="Görev Tarihi"
-        ).grid(
-            row=1,
-            column=0,
-            sticky="w",
+        filtre_alanlari = ctk.CTkFrame(
+            filtre,
+            fg_color="transparent",
+        )
+        filtre_alanlari.pack(
+            fill="x",
             padx=15,
-            pady=5
+            pady=(0, 15),
         )
 
-        ctk.CTkLabel(
-            kontrol_frame,
-            text="Periyot Filtresi"
-        ).grid(
-            row=1,
-            column=1,
-            sticky="w",
-            padx=15,
-            pady=5
+        for column in range(5):
+            filtre_alanlari.grid_columnconfigure(
+                column,
+                weight=1,
+                uniform="cleaning_filter",
+            )
+
+        filtre_basliklari = (
+            "Görev Tarihi",
+            "Periyot",
+            "Durum",
+            "Liste",
+            "Rapor",
         )
 
-        ctk.CTkLabel(
-            kontrol_frame,
-            text="Durum Filtresi"
-        ).grid(
-            row=1,
-            column=2,
-            sticky="w",
-            padx=15,
-            pady=5
-        )
+        for column, baslik in enumerate(
+            filtre_basliklari
+        ):
+            ctk.CTkLabel(
+                filtre_alanlari,
+                text=baslik,
+                anchor="w",
+            ).grid(
+                row=0,
+                column=column,
+                sticky="ew",
+                padx=5,
+                pady=(0, 4),
+            )
 
         self.temizlik_plan_tarih = ctk.CTkEntry(
-            kontrol_frame
+            filtre_alanlari,
+            height=40,
         )
         self.temizlik_plan_tarih.grid(
-            row=2,
+            row=1,
             column=0,
             sticky="ew",
-            padx=15,
-            pady=(0, 10)
+            padx=5,
         )
         self.temizlik_plan_tarih.insert(
             0,
-            datetime.now().strftime("%d.%m.%Y")
+            datetime.now().strftime("%d.%m.%Y"),
         )
 
         self.temizlik_periyot_filtre = ctk.CTkOptionMenu(
-            kontrol_frame,
+            filtre_alanlari,
             values=[
                 "TÜMÜ",
                 "GÜNLÜK",
@@ -7272,21 +7284,19 @@ class RedboxOS(ctk.CTk):
             ],
             command=lambda _value: (
                 self.temizlik_planli_gorevleri_listele()
-            )
+            ),
+            height=40,
         )
         self.temizlik_periyot_filtre.grid(
-            row=2,
+            row=1,
             column=1,
             sticky="ew",
-            padx=15,
-            pady=(0, 10)
+            padx=5,
         )
-        self.temizlik_periyot_filtre.set(
-            "TÜMÜ"
-        )
+        self.temizlik_periyot_filtre.set("TÜMÜ")
 
         self.temizlik_durum_filtre = ctk.CTkOptionMenu(
-            kontrol_frame,
+            filtre_alanlari,
             values=[
                 "TÜMÜ",
                 "GECİKEN",
@@ -7295,88 +7305,94 @@ class RedboxOS(ctk.CTk):
             ],
             command=lambda _value: (
                 self.temizlik_planli_gorevleri_listele()
-            )
+            ),
+            height=40,
         )
         self.temizlik_durum_filtre.grid(
-            row=2,
+            row=1,
             column=2,
             sticky="ew",
-            padx=15,
-            pady=(0, 10)
+            padx=5,
         )
-        self.temizlik_durum_filtre.set(
-            "TÜMÜ"
-        )
+        self.temizlik_durum_filtre.set("TÜMÜ")
 
         ctk.CTkButton(
-            kontrol_frame,
+            filtre_alanlari,
             text="GÖREVLERİ GETİR",
-            command=self.temizlik_planli_gorevleri_listele
+            command=self.temizlik_planli_gorevleri_listele,
+            height=40,
+            font=("Arial", 12, "bold"),
         ).grid(
-            row=2,
+            row=1,
             column=3,
             sticky="ew",
-            padx=(15,5),
-            pady=(0,10)
+            padx=5,
         )
 
         ctk.CTkButton(
-            kontrol_frame,
+            filtre_alanlari,
             text="PDF OLUŞTUR",
-            command=self.temizlik_pdf_raporu
+            command=self.temizlik_pdf_raporu,
+            height=40,
+            fg_color="#4B5563",
+            font=("Arial", 12, "bold"),
         ).grid(
-            row=2,
+            row=1,
             column=4,
             sticky="ew",
-            padx=(5,15),
-            pady=(0,10)
+            padx=5,
         )
 
-        self.temizlik_plan_ozet = ctk.CTkLabel(
-            kontrol_frame,
-            text="Planlı görev özeti yükleniyor.",
-            justify="left"
+        kpi_alani = ctk.CTkFrame(
+            ana,
+            fg_color="transparent",
         )
-        self.temizlik_plan_ozet.grid(
-            row=3,
-            column=0,
-            columnspan=4,
-            sticky="w",
-            padx=15,
-            pady=(0, 10)
+        kpi_alani.pack(
+            fill="x",
+            padx=5,
+            pady=(0, 12),
         )
 
-        ctk.CTkLabel(
-            kontrol_frame,
-            text="Uygulayan"
-        ).grid(
-            row=4,
-            column=0,
-            sticky="w",
-            padx=15,
-            pady=5
-        )
+        self.temizlik_kpi_labels = []
 
-        ctk.CTkLabel(
-            kontrol_frame,
-            text="Kontrol Eden"
-        ).grid(
-            row=4,
-            column=1,
-            sticky="w",
-            padx=15,
-            pady=5
-        )
+        for baslik in (
+            "TOPLAM GÖREV",
+            "GECİKEN",
+            "BEKLEYEN",
+            "GELECEK",
+        ):
+            kart = ctk.CTkFrame(
+                kpi_alani,
+                height=82,
+            )
+            kart.pack(
+                side="left",
+                fill="x",
+                expand=True,
+                padx=5,
+            )
+            kart.pack_propagate(False)
 
-        ctk.CTkLabel(
-            kontrol_frame,
-            text="Açıklama"
-        ).grid(
-            row=4,
-            column=2,
-            sticky="w",
-            padx=15,
-            pady=5
+            ctk.CTkLabel(
+                kart,
+                text=baslik,
+                font=("Arial", 11, "bold"),
+                text_color="#A3A3A3",
+            ).pack(pady=(12, 3))
+
+            deger = ctk.CTkLabel(
+                kart,
+                text="0",
+                font=("Arial", 21, "bold"),
+            )
+            deger.pack()
+            self.temizlik_kpi_labels.append(deger)
+
+        islem = ctk.CTkFrame(ana)
+        islem.pack(
+            fill="x",
+            padx=10,
+            pady=(0, 12),
         )
 
         aktif_personeller = (
@@ -7388,31 +7404,58 @@ class RedboxOS(ctk.CTk):
                 "Aktif temizlik yetkili personeli bulunmuyor."
             )
 
+        for column in range(4):
+            islem.grid_columnconfigure(
+                column,
+                weight=1,
+                uniform="cleaning_action",
+            )
+
+        for column, baslik in enumerate((
+            "Uygulayan",
+            "Kontrol Eden",
+            "Açıklama",
+            "İşlem",
+        )):
+            ctk.CTkLabel(
+                islem,
+                text=baslik,
+                anchor="w",
+            ).grid(
+                row=0,
+                column=column,
+                sticky="ew",
+                padx=10,
+                pady=(10, 4),
+            )
+
         self.temizlik_uygulayan = ctk.CTkOptionMenu(
-            kontrol_frame,
-            values=aktif_personeller
+            islem,
+            values=aktif_personeller,
+            height=38,
         )
         self.temizlik_uygulayan.grid(
-            row=5,
+            row=1,
             column=0,
             sticky="ew",
-            padx=15,
-            pady=(0, 15)
+            padx=10,
+            pady=(0, 12),
         )
         self.temizlik_uygulayan.set(
             aktif_personeller[0]
         )
 
         self.temizlik_kontrol = ctk.CTkOptionMenu(
-            kontrol_frame,
-            values=aktif_personeller
+            islem,
+            values=aktif_personeller,
+            height=38,
         )
         self.temizlik_kontrol.grid(
-            row=5,
+            row=1,
             column=1,
             sticky="ew",
-            padx=15,
-            pady=(0, 15)
+            padx=10,
+            pady=(0, 12),
         )
         self.temizlik_kontrol.set(
             aktif_personeller[1]
@@ -7421,35 +7464,66 @@ class RedboxOS(ctk.CTk):
         )
 
         self.temizlik_aciklama = ctk.CTkEntry(
-            kontrol_frame
+            islem,
+            height=38,
         )
         self.temizlik_aciklama.grid(
-            row=5,
+            row=1,
             column=2,
-            columnspan=2,
             sticky="ew",
-            padx=15,
-            pady=(0, 15)
+            padx=10,
+            pady=(0, 12),
         )
 
-        for column in range(5):
-            kontrol_frame.grid_columnconfigure(
-                column,
-                weight=1
-            )
+        ctk.CTkButton(
+            islem,
+            text="SEÇİLİ GÖREVİ TAMAMLA",
+            command=self.temizlik_secili_gorev_tamamla,
+            height=38,
+            font=("Arial", 12, "bold"),
+        ).grid(
+            row=1,
+            column=3,
+            sticky="ew",
+            padx=10,
+            pady=(0, 12),
+        )
 
-        self.temizlik_plan_liste_frame = (
-            ctk.CTkScrollableFrame(self.content)
+        self.temizlik_plan_liste_frame = ctk.CTkFrame(
+            ana
         )
         self.temizlik_plan_liste_frame.pack(
             fill="both",
             expand=True,
-            padx=20,
-            pady=(0, 20)
+            padx=10,
+            pady=(0, 10),
         )
 
         self.temizlik_planli_gorevleri_listele()
 
+    def temizlik_secili_gorev_tamamla(self):
+        secim = self.temizlik_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Görev Seçilmedi",
+                (
+                    "Tamamlamak için tablodan "
+                    "bir temizlik görevi seçin."
+                ),
+            )
+            return
+
+        gorev = self.temizlik_gorev_map.get(secim[0])
+
+        if gorev is None:
+            messagebox.showerror(
+                "Görev Hatası",
+                "Seçilen görev bilgisi bulunamadı.",
+            )
+            return
+
+        self.temizlik_planli_gorev_tamamla(gorev)
 
     def temizlik_planli_gorevleri_listele(self):
         for widget in (
@@ -7461,28 +7535,15 @@ class RedboxOS(ctk.CTk):
 
         try:
             tarih = self.temizlik_plan_tarih.get().strip()
-
-            datetime.strptime(
-                tarih,
-                "%d.%m.%Y"
-            )
+            datetime.strptime(tarih, "%d.%m.%Y")
 
             conn = get_connection()
-
-            gorevler = get_due_cleaning_tasks(
-                conn,
-                tarih,
-            )
-
-            ozet = get_due_cleaning_summary(
-                conn,
-                tarih,
-            )
+            gorevler = get_due_cleaning_tasks(conn, tarih)
+            ozet = get_due_cleaning_summary(conn, tarih)
 
             periyot_filtre = (
                 self.temizlik_periyot_filtre.get().strip()
             )
-
             durum_filtre = (
                 self.temizlik_durum_filtre.get().strip()
             )
@@ -7495,7 +7556,6 @@ class RedboxOS(ctk.CTk):
                 "AYLIK": "AYLIK",
                 "YILLIK": "YILLIK",
             }
-
             durum_map = {
                 "TÜMÜ": None,
                 "GECİKEN": "GECIKEN",
@@ -7503,25 +7563,19 @@ class RedboxOS(ctk.CTk):
                 "GELECEK": "GELECEK",
             }
 
-            secili_periyot = periyot_map.get(
-                periyot_filtre
-            )
-
-            secili_durum = durum_map.get(
-                durum_filtre
-            )
-
             if periyot_filtre not in periyot_map:
                 raise ValueError(
-                    "Geçerli bir periyot filtresi seçilmelidir."
+                    "Geçerli periyot seçilmelidir."
                 )
-
             if durum_filtre not in durum_map:
                 raise ValueError(
-                    "Geçerli bir durum filtresi seçilmelidir."
+                    "Geçerli durum seçilmelidir."
                 )
 
-            filtreli_gorevler = [
+            secili_periyot = periyot_map[periyot_filtre]
+            secili_durum = durum_map[durum_filtre]
+
+            filtreli = [
                 gorev
                 for gorev in gorevler
                 if (
@@ -7543,144 +7597,188 @@ class RedboxOS(ctk.CTk):
             }
 
             for gorev in gorevler:
-                durum_sayilari[
-                    gorev["durum"]
-                ] += 1
+                durum_sayilari[gorev["durum"]] += 1
 
-            self.temizlik_plan_ozet.configure(
-                text=(
-                    f'TOPLAM: {ozet["TOPLAM"]} | '
-                    f'GÜNLÜK: {ozet["GUNLUK"]} | '
-                    f'ÜRETİM SONRASI: {ozet["URETIM_SONRASI"]} | '
-                    f'HAFTALIK: {ozet["HAFTALIK"]} | '
-                    f'AYLIK: {ozet["AYLIK"]} | '
-                    f'YILLIK: {ozet["YILLIK"]}\n'
-                    f'GECİKEN: {durum_sayilari["GECIKEN"]} | '
-                    f'BEKLEYEN: {durum_sayilari["BEKLEYEN"]} | '
-                    f'GELECEK: {durum_sayilari["GELECEK"]} | '
-                    f'FİLTRE SONUCU: {len(filtreli_gorevler)}'
-                )
+            kpi_degerleri = (
+                int(ozet["TOPLAM"]),
+                durum_sayilari["GECIKEN"],
+                durum_sayilari["BEKLEYEN"],
+                durum_sayilari["GELECEK"],
             )
 
-            if not filtreli_gorevler:
-                ctk.CTkLabel(
-                    self.temizlik_plan_liste_frame,
-                    text=(
-                        "Seçilen tarih ve filtreler için "
-                        "planlı temizlik görevi bulunmuyor."
-                    )
-                ).pack(
-                    anchor="w",
-                    padx=15,
-                    pady=15
+            for label, deger in zip(
+                self.temizlik_kpi_labels,
+                kpi_degerleri,
+            ):
+                label.configure(text=str(deger))
+
+            style = ttk.Style()
+            style.theme_use("default")
+            style.configure(
+                "Cleaning.Treeview",
+                background="#292929",
+                foreground="#F3F4F6",
+                fieldbackground="#292929",
+                borderwidth=0,
+                rowheight=40,
+                font=("Arial", 11),
+            )
+            style.configure(
+                "Cleaning.Treeview.Heading",
+                background="#1F2937",
+                foreground="#F9FAFB",
+                relief="flat",
+                font=("Arial", 10, "bold"),
+            )
+            style.map(
+                "Cleaning.Treeview",
+                background=[("selected", "#1F6AA5")],
+                foreground=[("selected", "#FFFFFF")],
+            )
+
+            tree_area = ctk.CTkFrame(
+                self.temizlik_plan_liste_frame
+            )
+            tree_area.pack(
+                fill="both",
+                expand=True,
+            )
+            tree_area.grid_rowconfigure(0, weight=1)
+            tree_area.grid_columnconfigure(0, weight=1)
+
+            columns = (
+                "durum",
+                "periyot",
+                "tarih",
+                "kat",
+                "alan",
+                "ekipman",
+                "lot",
+                "gorev",
+                "talimat",
+            )
+
+            self.temizlik_tree = ttk.Treeview(
+                tree_area,
+                columns=columns,
+                show="headings",
+                style="Cleaning.Treeview",
+                selectmode="browse",
+            )
+
+            headings = (
+                ("durum", "DURUM", 90, "center"),
+                ("periyot", "PERİYOT", 115, "center"),
+                ("tarih", "PLAN TARİHİ", 95, "center"),
+                ("kat", "KAT", 110, "w"),
+                ("alan", "ALAN", 150, "w"),
+                ("ekipman", "EKİPMAN", 145, "w"),
+                ("lot", "ÜRETİM LOTU", 105, "center"),
+                ("gorev", "GÖREV", 220, "w"),
+                ("talimat", "TALİMAT", 300, "w"),
+            )
+
+            for column, title, width, anchor in headings:
+                self.temizlik_tree.heading(
+                    column,
+                    text=title,
+                    anchor=anchor,
                 )
-                return
-
-            kat_frame_map = {}
-
-            for gorev in filtreli_gorevler:
-                kat_adi = gorev["kat_adi"]
-
-                if kat_adi not in kat_frame_map:
-                    kat_frame = ctk.CTkFrame(
-                        self.temizlik_plan_liste_frame
-                    )
-                    kat_frame.pack(
-                        fill="x",
-                        padx=5,
-                        pady=(8, 4)
-                    )
-
-                    ctk.CTkLabel(
-                        kat_frame,
-                        text=kat_adi,
-                        font=("Arial", 18, "bold")
-                    ).pack(
-                        anchor="w",
-                        padx=15,
-                        pady=(10, 5)
-                    )
-
-                    kat_frame_map[kat_adi] = kat_frame
-
-                kart = ctk.CTkFrame(
-                    kat_frame_map[kat_adi]
-                )
-                kart.pack(
-                    fill="x",
-                    padx=10,
-                    pady=5
-                )
-
-                ekipman = gorev["ekipman_adi"] or "-"
-                uretim_lotu = gorev["urun_lot_no"] or "-"
-
-                durum_gosterim = {
-                    "GECIKEN": "GECİKEN",
-                    "BEKLEYEN": "BEKLEYEN",
-                    "GELECEK": "GELECEK",
-                }[
-                    gorev["durum"]
-                ]
-
-                metin = (
-                    f'{gorev["gorev_adi"]}\n'
-                    f'Durum: {durum_gosterim} | '
-                    f'Periyot: {gorev["periyot"]} | '
-                    f'Planlanan Tarih: {gorev["planlanan_tarih"]}\n'
-                    f'Dönem: {gorev["donem_baslangic_tarihi"]} - '
-                    f'{gorev["donem_bitis_tarihi"]}\n'
-                    f'Alan: {gorev["alan_adi"]} | '
-                    f'Ekipman: {ekipman}\n'
-                    f'Üretim Lotu: {uretim_lotu}\n'
-                    f'Talimat: {gorev["talimat"]}'
-                )
-
-                durum_badge = ctk.CTkLabel(
-                    kart,
-                    text=durum_gosterim,
-                    width=110,
-                    font=("Arial", 13, "bold")
-                )
-                durum_badge.pack(
-                    side="left",
-                    padx=(15, 5),
-                    pady=12
-                )
-
-                ctk.CTkLabel(
-                    kart,
-                    text=metin,
-                    justify="left",
-                    wraplength=780
-                ).pack(
-                    side="left",
-                    anchor="w",
-                    fill="x",
-                    expand=True,
-                    padx=10,
-                    pady=12
+                self.temizlik_tree.column(
+                    column,
+                    width=width,
+                    minwidth=75,
+                    anchor=anchor,
+                    stretch=True,
                 )
 
-                ctk.CTkButton(
-                    kart,
-                    text="YAPILDI",
-                    width=130,
-                    command=lambda task=gorev: (
-                        self.temizlik_planli_gorev_tamamla(
-                            task
-                        )
-                    )
-                ).pack(
-                    side="right",
-                    padx=15,
-                    pady=12
+            self.temizlik_tree.tag_configure(
+                "delayed",
+                foreground="#FCA5A5",
+            )
+            self.temizlik_tree.tag_configure(
+                "pending",
+                foreground="#FDE68A",
+            )
+            self.temizlik_tree.tag_configure(
+                "future",
+                foreground="#93C5FD",
+            )
+
+            self.temizlik_gorev_map = {}
+
+            durum_gosterim = {
+                "GECIKEN": "GECİKEN",
+                "BEKLEYEN": "BEKLEYEN",
+                "GELECEK": "GELECEK",
+            }
+            tag_map = {
+                "GECIKEN": "delayed",
+                "BEKLEYEN": "pending",
+                "GELECEK": "future",
+            }
+
+            for index, gorev in enumerate(filtreli):
+                iid = (
+                    f'{gorev["plan_id"]}:'
+                    f'{gorev["planlanan_tarih"]}:'
+                    f'{index}'
                 )
+                self.temizlik_gorev_map[iid] = gorev
+
+                self.temizlik_tree.insert(
+                    "",
+                    "end",
+                    iid=iid,
+                    values=(
+                        durum_gosterim[gorev["durum"]],
+                        gorev["periyot"],
+                        gorev["planlanan_tarih"],
+                        gorev["kat_adi"],
+                        gorev["alan_adi"],
+                        gorev["ekipman_adi"] or "-",
+                        gorev["urun_lot_no"] or "-",
+                        gorev["gorev_adi"],
+                        gorev["talimat"],
+                    ),
+                    tags=(tag_map[gorev["durum"]],),
+                )
+
+            vertical = ttk.Scrollbar(
+                tree_area,
+                orient="vertical",
+                command=self.temizlik_tree.yview,
+            )
+            horizontal = ttk.Scrollbar(
+                tree_area,
+                orient="horizontal",
+                command=self.temizlik_tree.xview,
+            )
+
+            self.temizlik_tree.configure(
+                yscrollcommand=vertical.set,
+                xscrollcommand=horizontal.set,
+            )
+            self.temizlik_tree.grid(
+                row=0,
+                column=0,
+                sticky="nsew",
+            )
+            vertical.grid(
+                row=0,
+                column=1,
+                sticky="ns",
+            )
+            horizontal.grid(
+                row=1,
+                column=0,
+                sticky="ew",
+            )
 
         except ValueError:
             messagebox.showerror(
                 "Planlı Temizlik Hatası",
-                "Tarih veya filtre seçimi geçerli değildir."
+                "Tarih veya filtre seçimi geçerli değildir.",
             )
 
         except Exception as hata:
@@ -7689,7 +7787,7 @@ class RedboxOS(ctk.CTk):
                 (
                     "Planlı temizlik görevleri yüklenemedi:\n"
                     f"{hata}"
-                )
+                ),
             )
 
         finally:
