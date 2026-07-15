@@ -8245,7 +8245,10 @@ class RedboxOS(ctk.CTk):
                     id,
                     ad,
                     parti_teorik_kg,
-                    aktif
+                    aktif,
+                    revizyon_no,
+                    gecerlilik_tarihi,
+                    revizyon_aciklamasi
                 FROM receteler
                 WHERE aktif = 1
                 ORDER BY id DESC
@@ -8326,6 +8329,25 @@ class RedboxOS(ctk.CTk):
             )
             return
 
+        conn = get_connection()
+        try:
+            revizyonlar = conn.execute("""
+                SELECT
+                    r.id,
+                    r.ad,
+                    r.revizyon_no,
+                    r.gecerlilik_tarihi,
+                    r.aktif,
+                    r.revizyon_aciklamasi,
+                    p.ad_soyad AS olusturan
+                FROM receteler r
+                LEFT JOIN personeller p
+                  ON p.id = r.olusturan_personel_id
+                ORDER BY r.id DESC
+            """).fetchall()
+        finally:
+            conn.close()
+
         if recete is None:
             messagebox.showwarning(
                 "Aktif Reçete Yok",
@@ -8379,7 +8401,10 @@ class RedboxOS(ctk.CTk):
             ust,
             text=(
                 f"Reçete ID: {recete['id']}  •  "
+                f"Revizyon: {recete['revizyon_no'] or '-'}  •  "
                 f"Durum: {durum}  •  "
+                f"Geçerlilik: "
+                f"{recete['gecerlilik_tarihi'] or '-'}  •  "
                 f"1 PARTİ: "
                 f"{float(recete['parti_teorik_kg']):.3f} kg"
             ),
@@ -8389,6 +8414,78 @@ class RedboxOS(ctk.CTk):
             padx=20,
             pady=(0, 18),
         )
+
+        kuru_toplam_kpi = sum(
+            float(kalem["miktar_kg"])
+            for kalem in kalemler
+        )
+        toplam_kpi = kuru_toplam_kpi + proses_suyu_kg
+        su_orani = (
+            proses_suyu_kg / toplam_kpi * 100
+            if toplam_kpi > 0
+            else 0.0
+        )
+
+        kpi_alani = ctk.CTkFrame(
+            ana_kart,
+            fg_color="transparent",
+        )
+        kpi_alani.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 10),
+        )
+
+        kpi_verileri = (
+            (
+                "1 PARTİ",
+                f"{float(recete['parti_teorik_kg']):.3f} kg",
+            ),
+            ("HAMMADDE KALEMİ", len(kalemler)),
+            (
+                "HAMMADDE TOPLAMI",
+                f"{kuru_toplam_kpi:.3f} kg",
+            ),
+            (
+                "PROSES SUYU ORANI",
+                f"%{su_orani:.2f}",
+            ),
+        )
+
+        for index in range(len(kpi_verileri)):
+            kpi_alani.grid_columnconfigure(
+                index,
+                weight=1,
+                uniform="recipe_kpi",
+            )
+
+        for index, (kart_basligi, deger) in enumerate(
+            kpi_verileri
+        ):
+            kart = ctk.CTkFrame(
+                kpi_alani,
+                height=82,
+            )
+            kart.grid(
+                row=0,
+                column=index,
+                sticky="nsew",
+                padx=5,
+            )
+            kart.grid_propagate(False)
+
+            ctk.CTkLabel(
+                kart,
+                text=kart_basligi,
+                font=("Arial", 10, "bold"),
+                text_color="#A3A3A3",
+            ).pack(pady=(12, 3))
+
+            ctk.CTkLabel(
+                kart,
+                text=str(deger),
+                font=("Arial", 19, "bold"),
+            ).pack()
 
         tablo = ctk.CTkFrame(
             ana_kart,
@@ -8642,18 +8739,344 @@ class RedboxOS(ctk.CTk):
             pady=(3, 15),
         )
 
-        ctk.CTkButton(
+        islemler = ctk.CTkFrame(
             ozet,
+            fg_color="transparent",
+        )
+        islemler.pack(
+            fill="x",
+            padx=20,
+            pady=(5, 18),
+        )
+
+        ctk.CTkButton(
+            islemler,
+            text="+ YENİ HAMMADDE TANIMLA",
+            command=self.recete_hammadde_tanimla,
+            height=42,
+            fg_color="#4B5563",
+            font=("Arial", 13, "bold"),
+        ).pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 5),
+        )
+
+        ctk.CTkButton(
+            islemler,
             text="YENİ REVİZYON OLUŞTUR",
             command=self.recete_revizyon_formu_ac,
             height=42,
-            font=("Arial", 14, "bold"),
+            font=("Arial", 13, "bold"),
         ).pack(
-            anchor="e",
-            padx=20,
-            pady=(0, 18),
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(5, 0),
         )
 
+        ctk.CTkLabel(
+            ana_kart,
+            text="REVİZYON GEÇMİŞİ",
+            font=("Arial", 18, "bold"),
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(5, 8),
+        )
+
+        gecmis = ctk.CTkFrame(
+            ana_kart,
+            fg_color="transparent",
+        )
+        gecmis.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 20),
+        )
+
+        gecmis_basliklari = (
+            "REV",
+            "REÇETE ADI",
+            "GEÇERLİLİK",
+            "DURUM",
+            "OLUŞTURAN",
+            "AÇIKLAMA",
+        )
+
+        for index in range(len(gecmis_basliklari)):
+            gecmis.grid_columnconfigure(
+                index,
+                weight=1,
+                uniform="recipe_history",
+            )
+
+        for column, baslik_metni in enumerate(
+            gecmis_basliklari
+        ):
+            ctk.CTkLabel(
+                gecmis,
+                text=baslik_metni,
+                height=38,
+                fg_color="#1F2937",
+                font=("Arial", 10, "bold"),
+                wraplength=170,
+            ).grid(
+                row=0,
+                column=column,
+                sticky="nsew",
+                padx=1,
+                pady=1,
+            )
+
+        for row_index, row in enumerate(
+            revizyonlar,
+            1,
+        ):
+            renk = (
+                "#292929"
+                if row_index % 2
+                else "#303030"
+            )
+
+            degerler = (
+                row["revizyon_no"] or "-",
+                row["ad"],
+                row["gecerlilik_tarihi"] or "-",
+                (
+                    "AKTİF"
+                    if int(row["aktif"]) == 1
+                    else "PASİF"
+                ),
+                row["olusturan"] or "-",
+                row["revizyon_aciklamasi"] or "-",
+            )
+
+            for column, deger in enumerate(degerler):
+                ctk.CTkLabel(
+                    gecmis,
+                    text=str(deger),
+                    height=40,
+                    fg_color=renk,
+                    font=("Arial", 10),
+                    wraplength=170,
+                ).grid(
+                    row=row_index,
+                    column=column,
+                    sticky="nsew",
+                    padx=1,
+                    pady=1,
+                )
+
+
+    def recete_hammadde_tanimla(self):
+        if not self.formul_erisim_kontrolu():
+            return
+
+        pencere = ctk.CTkToplevel(self)
+        pencere.title("Yeni Hammadde Tanımla")
+        pencere.geometry("520x360")
+        pencere.resizable(False, False)
+        pencere.transient(self)
+        pencere.grab_set()
+
+        govde = ctk.CTkFrame(pencere)
+        govde.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=20,
+        )
+
+        ctk.CTkLabel(
+            govde,
+            text="YENİ HAMMADDE TANIMLA",
+            font=("Arial", 21, "bold"),
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(20, 5),
+        )
+
+        ctk.CTkLabel(
+            govde,
+            text=(
+                "Tanımlanan hammadde, yeni reçete "
+                "revizyonunda seçilebilir."
+            ),
+            text_color="#A3A3A3",
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(0, 15),
+        )
+
+        ctk.CTkLabel(
+            govde,
+            text="Hammadde Adı",
+            anchor="w",
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(5, 3),
+        )
+
+        ad_entry = ctk.CTkEntry(
+            govde,
+            height=38,
+        )
+        ad_entry.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 10),
+        )
+
+        ctk.CTkLabel(
+            govde,
+            text="Birim",
+            anchor="w",
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(5, 3),
+        )
+
+        birim_secim = ctk.CTkComboBox(
+            govde,
+            values=["kg", "g"],
+            state="readonly",
+            height=38,
+        )
+        birim_secim.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 15),
+        )
+        birim_secim.set("kg")
+
+        ctk.CTkButton(
+            govde,
+            text="HAMMADDEYİ TANIMLA",
+            height=42,
+            font=("Arial", 13, "bold"),
+            command=lambda: self.recete_hammadde_kaydet(
+                pencere,
+                ad_entry,
+                birim_secim,
+            ),
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(5, 20),
+        )
+
+        ad_entry.focus_set()
+
+    def recete_hammadde_kaydet(
+        self,
+        pencere,
+        ad_entry,
+        birim_secim,
+    ):
+        ad = ad_entry.get().strip()
+        birim = birim_secim.get().strip()
+
+        if not ad:
+            messagebox.showwarning(
+                "Eksik Bilgi",
+                "Hammadde adı boş bırakılamaz.",
+            )
+            return
+
+        if birim not in ("kg", "g"):
+            messagebox.showwarning(
+                "Birim Hatası",
+                "Geçerli birim seçilmelidir.",
+            )
+            return
+
+        conn = None
+
+        try:
+            conn = get_connection()
+            conn.execute("BEGIN IMMEDIATE")
+
+            mevcutlar = conn.execute("""
+                SELECT
+                    id,
+                    ad,
+                    aktif
+                FROM hammaddeler
+            """).fetchall()
+
+            ayni = next(
+                (
+                    row
+                    for row in mevcutlar
+                    if str(row["ad"]).casefold()
+                    == ad.casefold()
+                ),
+                None,
+            )
+
+            if ayni is not None:
+                if int(ayni["aktif"]) == 1:
+                    raise ValueError(
+                        "Bu hammadde zaten aktif olarak tanımlı."
+                    )
+
+                conn.execute("""
+                    UPDATE hammaddeler
+                    SET
+                        aktif = 1,
+                        birim = ?
+                    WHERE id = ?
+                """, (
+                    birim,
+                    ayni["id"],
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO hammaddeler (
+                        ad,
+                        birim,
+                        aktif
+                    )
+                    VALUES (?, ?, 1)
+                """, (
+                    ad,
+                    birim,
+                ))
+
+            conn.commit()
+
+        except Exception as hata:
+            if conn is not None:
+                conn.rollback()
+
+            messagebox.showerror(
+                "Hammadde Tanımlanamadı",
+                str(hata),
+            )
+            return
+
+        finally:
+            if conn is not None:
+                conn.close()
+
+        if pencere.winfo_exists():
+            pencere.destroy()
+
+        messagebox.showinfo(
+            "Reçete Merkezi",
+            (
+                f"{ad} başarıyla tanımlandı. "
+                "Yeni revizyonda miktar verebilirsiniz."
+            ),
+        )
+
+        self.recete()
 
     def recete_revizyon_no_uret(self, conn):
         rows = conn.execute(
@@ -8706,14 +9129,24 @@ class RedboxOS(ctk.CTk):
             kalemler = conn.execute(
                 """
                 SELECT
-                    rk.hammadde_id,
+                    h.id AS hammadde_id,
                     h.ad,
-                    rk.miktar_kg
-                FROM recete_kalemleri rk
-                JOIN hammaddeler h
-                  ON h.id = rk.hammadde_id
-                WHERE rk.recete_id = ?
-                ORDER BY rk.id
+                    COALESCE(
+                        rk.miktar_kg,
+                        0
+                    ) AS miktar_kg,
+                    CASE
+                        WHEN rk.id IS NULL THEN 1
+                        ELSE 0
+                    END AS yeni_kalem
+                FROM hammaddeler h
+                LEFT JOIN recete_kalemleri rk
+                  ON rk.hammadde_id = h.id
+                 AND rk.recete_id = ?
+                WHERE h.aktif = 1
+                ORDER BY
+                    yeni_kalem,
+                    COALESCE(rk.id, h.id)
                 """,
                 (recete["id"],),
             ).fetchall()
@@ -8904,9 +9337,9 @@ class RedboxOS(ctk.CTk):
         ctk.CTkLabel(
             govde,
             text=(
-                "Bu ekran yeni revizyon verilerini hazırlar. "
-                "Kayıt işlemi bir sonraki kontrollü aşamada "
-                "etkinleştirilecektir."
+                "Miktarı 0 olan yeni hammaddeler revizyona "
+                "alınmaz. Toplam hammadde ve proses suyu "
+                "tanımlı 1 parti miktarına eşit olmalıdır."
             ),
             font=("Arial", 12),
             wraplength=650,
@@ -9015,14 +9448,15 @@ class RedboxOS(ctk.CTk):
                     .replace(",", ".")
                 )
 
-                miktar = float(metin)
+                miktar = float(metin) if metin else 0.0
 
-                if miktar <= 0:
+                if miktar < 0:
                     raise ValueError(
-                        "Reçete miktarı sıfırdan büyük olmalıdır."
+                        "Reçete miktarı negatif olamaz."
                     )
 
-                miktarlar[int(hammadde_id)] = miktar
+                if miktar > 0:
+                    miktarlar[int(hammadde_id)] = miktar
 
         except ValueError as hata:
             messagebox.showwarning(
@@ -9031,10 +9465,10 @@ class RedboxOS(ctk.CTk):
             )
             return
 
-        if len(miktarlar) != 8:
+        if not miktarlar:
             messagebox.showerror(
                 "Reçete Hatası",
-                "Revizyon tam olarak 8 hammadde kalemi içermelidir.",
+                "Revizyonda en az bir hammadde bulunmalıdır.",
             )
             return
 
@@ -9081,9 +9515,12 @@ class RedboxOS(ctk.CTk):
                 for row in kaynak_kalemler
             }
 
-            if kaynak_ids != set(miktarlar):
+            if not kaynak_ids.issubset(
+                set(miktarlar)
+            ):
                 raise RuntimeError(
-                    "Revizyon hammadde kontratı kaynak reçete ile uyuşmuyor."
+                    "Mevcut reçete hammaddeleri yeni revizyonda "
+                    "sıfır veya boş bırakılamaz."
                 )
 
             ayar = conn.execute(
@@ -9242,9 +9679,9 @@ class RedboxOS(ctk.CTk):
                     "Tek aktif reçete doğrulaması başarısız."
                 )
 
-            if yeni_kalem_sayisi != 8:
+            if yeni_kalem_sayisi != len(miktarlar):
                 raise RuntimeError(
-                    "Yeni reçete 8 kalem doğrulaması başarısız."
+                    "Yeni reçete kalem sayısı doğrulaması başarısız."
                 )
 
             conn.commit()
