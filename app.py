@@ -9754,178 +9754,163 @@ class RedboxOS(ctk.CTk):
             "Personel ve görev / yetki yönetimi"
         )
 
-        ana = ctk.CTkFrame(
-            self.content
-        )
+        ana = ctk.CTkFrame(self.content)
         ana.pack(
             fill="both",
             expand=True,
-            padx=20,
-            pady=20
+            padx=40,
+            pady=(0, 30),
         )
 
-        form = ctk.CTkFrame(
-            ana
+        form_panel = ctk.CTkScrollableFrame(ana)
+        liste_panel = ctk.CTkFrame(ana)
+        liste_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
         )
+
+        self.personel_form_panel = form_panel
+        self.personel_liste_panel = liste_panel
+
+        ctk.CTkButton(
+            form_panel,
+            text="← KAYITLARA DÖN",
+            width=160,
+            height=36,
+            fg_color="#4B5563",
+            command=self.personel_liste_goster,
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(15, 5),
+        )
+
+        form = ctk.CTkFrame(form_panel)
         form.pack(
             fill="x",
-            padx=10,
-            pady=10
+            padx=20,
+            pady=(10, 10),
         )
 
         ctk.CTkLabel(
             form,
-            text="PERSONEL KAYDI",
-            font=("Arial", 18, "bold")
+            text="YENİ PERSONEL KAYDI",
+            font=("Arial", 18, "bold"),
         ).grid(
             row=0,
             column=0,
             columnspan=4,
             sticky="w",
             padx=15,
-            pady=(15, 10)
+            pady=(15, 10),
         )
 
-        ctk.CTkLabel(
-            form,
-            text="Ad Soyad"
-        ).grid(
-            row=1,
-            column=0,
-            sticky="w",
-            padx=15,
-            pady=5
+        alanlar = (
+            ("Ad Soyad", "personel_ad"),
+            ("Ana Görev / Ünvan", "personel_gorev"),
+            ("Açıklama", "personel_aciklama"),
         )
 
-        self.personel_ad_soyad = ctk.CTkEntry(
-            form
-        )
-        self.personel_ad_soyad.grid(
-            row=2,
-            column=0,
-            sticky="ew",
-            padx=15,
-            pady=(0, 10)
-        )
+        for column, (etiket, degisken) in enumerate(
+            alanlar
+        ):
+            ctk.CTkLabel(
+                form,
+                text=etiket,
+                anchor="w",
+            ).grid(
+                row=1,
+                column=column,
+                sticky="ew",
+                padx=15,
+                pady=(5, 3),
+            )
 
-        ctk.CTkLabel(
-            form,
-            text="Ana Görev / Ünvan"
-        ).grid(
-            row=1,
-            column=1,
-            sticky="w",
-            padx=15,
-            pady=5
-        )
-
-        self.personel_gorev = ctk.CTkEntry(
-            form
-        )
-        self.personel_gorev.grid(
-            row=2,
-            column=1,
-            sticky="ew",
-            padx=15,
-            pady=(0, 10)
-        )
-
-        ctk.CTkLabel(
-            form,
-            text="Açıklama"
-        ).grid(
-            row=1,
-            column=2,
-            sticky="w",
-            padx=15,
-            pady=5
-        )
-
-        self.personel_aciklama = ctk.CTkEntry(
-            form
-        )
-        self.personel_aciklama.grid(
-            row=2,
-            column=2,
-            sticky="ew",
-            padx=15,
-            pady=(0, 10)
-        )
+            entry = ctk.CTkEntry(
+                form,
+                height=40,
+            )
+            entry.grid(
+                row=2,
+                column=column,
+                sticky="ew",
+                padx=15,
+                pady=(0, 15),
+            )
+            setattr(self, degisken, entry)
 
         ctk.CTkButton(
             form,
             text="PERSONEL KAYDET",
-            command=self.personel_kaydet
+            command=self.personel_kaydet,
+            height=40,
+            font=("Arial", 13, "bold"),
         ).grid(
             row=2,
             column=3,
             sticky="ew",
             padx=15,
-            pady=(0, 10)
+            pady=(0, 15),
         )
 
-        for col in range(3):
+        for column in range(4):
             form.grid_columnconfigure(
-                col,
-                weight=1
+                column,
+                weight=1,
+                uniform="personnel_form",
             )
 
-        yetki_frame = ctk.CTkFrame(
-            ana
-        )
+        yetki_frame = ctk.CTkFrame(form_panel)
         yetki_frame.pack(
             fill="x",
-            padx=10,
-            pady=10
+            padx=20,
+            pady=(10, 20),
         )
 
         ctk.CTkLabel(
             yetki_frame,
             text="PERSONEL GÖREV / YETKİ ATAMA",
-            font=("Arial", 18, "bold")
+            font=("Arial", 18, "bold"),
         ).grid(
             row=0,
             column=0,
             columnspan=6,
             sticky="w",
             padx=15,
-            pady=(15, 10)
+            pady=(15, 10),
         )
 
-        aktif_personeller = (
-            self.aktif_personelleri_getir()
-        )
+        aktif_personeller = self.aktif_personelleri_getir()
 
         if not aktif_personeller:
-            aktif_personeller = [
-                "AKTİF PERSONEL YOK"
-            ]
+            aktif_personeller = ["AKTİF PERSONEL YOK"]
 
         ctk.CTkLabel(
             yetki_frame,
-            text="Personel"
+            text="Personel",
+            anchor="w",
         ).grid(
             row=1,
             column=0,
-            sticky="w",
+            sticky="ew",
             padx=15,
-            pady=5
+            pady=(5, 3),
         )
 
-        self.personel_yetki_secim = (
-            ctk.CTkOptionMenu(
-                yetki_frame,
-                values=aktif_personeller,
-                command=self.personel_yetki_secildi
-            )
+        self.personel_yetki_secim = ctk.CTkOptionMenu(
+            yetki_frame,
+            values=aktif_personeller,
+            command=self.personel_yetki_secildi,
+            height=38,
         )
-
         self.personel_yetki_secim.grid(
             row=2,
             column=0,
             sticky="ew",
             padx=15,
-            pady=(0, 15)
+            pady=(0, 15),
         )
 
         self.personel_yetki_vars = {}
@@ -9940,58 +9925,167 @@ class RedboxOS(ctk.CTk):
 
         for index, (
             yetki_kodu,
-            yetki_adi
+            yetki_adi,
         ) in enumerate(yetkiler, 1):
-            var = ctk.BooleanVar(
-                value=False
-            )
-
-            self.personel_yetki_vars[
-                yetki_kodu
-            ] = var
+            var = ctk.BooleanVar(value=False)
+            self.personel_yetki_vars[yetki_kodu] = var
 
             ctk.CTkCheckBox(
                 yetki_frame,
                 text=yetki_adi,
-                variable=var
+                variable=var,
             ).grid(
                 row=2,
                 column=index,
                 sticky="w",
                 padx=10,
-                pady=(0, 15)
+                pady=(0, 15),
             )
 
         ctk.CTkButton(
             yetki_frame,
             text="YETKİLERİ KAYDET",
-            command=self.personel_yetkileri_kaydet
+            command=self.personel_yetkileri_kaydet,
+            height=40,
+            font=("Arial", 13, "bold"),
         ).grid(
             row=3,
             column=0,
             columnspan=6,
             sticky="ew",
             padx=15,
-            pady=(0, 15)
+            pady=(0, 15),
         )
 
-        for col in range(6):
+        for column in range(6):
             yetki_frame.grid_columnconfigure(
-                col,
-                weight=1
+                column,
+                weight=1,
             )
 
-        self.personel_liste_frame = (
-            ctk.CTkScrollableFrame(
-                ana
-            )
+        ust = ctk.CTkFrame(
+            liste_panel,
+            fg_color="transparent",
+        )
+        ust.pack(
+            fill="x",
+            padx=20,
+            pady=(20, 10),
         )
 
+        ctk.CTkLabel(
+            ust,
+            text="PERSONEL KAYITLARI",
+            font=("Arial", 22, "bold"),
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            ust,
+            text="+ YENİ PERSONEL / YETKİ",
+            width=210,
+            height=40,
+            font=("Arial", 13, "bold"),
+            command=self.personel_form_goster,
+        ).pack(side="right")
+
+        kpi_alani = ctk.CTkFrame(
+            liste_panel,
+            fg_color="transparent",
+        )
+        kpi_alani.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 12),
+        )
+
+        self.personel_kpi_labels = []
+
+        for baslik in (
+            "TOPLAM PERSONEL",
+            "AKTİF PERSONEL",
+            "PASİF PERSONEL",
+            "YETKİLİ PERSONEL",
+        ):
+            kart = ctk.CTkFrame(
+                kpi_alani,
+                height=82,
+            )
+            kart.pack(
+                side="left",
+                fill="x",
+                expand=True,
+                padx=5,
+            )
+            kart.pack_propagate(False)
+
+            ctk.CTkLabel(
+                kart,
+                text=baslik,
+                font=("Arial", 11, "bold"),
+                text_color="#A3A3A3",
+            ).pack(pady=(12, 3))
+
+            deger = ctk.CTkLabel(
+                kart,
+                text="0",
+                font=("Arial", 21, "bold"),
+            )
+            deger.pack()
+            self.personel_kpi_labels.append(deger)
+
+        araclar = ctk.CTkFrame(
+            liste_panel,
+            fg_color="transparent",
+        )
+        araclar.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 12),
+        )
+
+        self.personel_arama = ctk.CTkEntry(
+            araclar,
+            placeholder_text=(
+                "Ad soyad, görev, yetki veya açıklama ara..."
+            ),
+            height=38,
+        )
+        self.personel_arama.pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 8),
+        )
+        self.personel_arama.bind(
+            "<KeyRelease>",
+            lambda event: self.personel_listele(),
+        )
+
+        ctk.CTkButton(
+            araclar,
+            text="TEMİZLE",
+            width=95,
+            height=38,
+            fg_color="#4B5563",
+            command=self.personel_filtre_temizle,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            araclar,
+            text="AKTİF / PASİF DEĞİŞTİR",
+            width=180,
+            height=38,
+            command=self.personel_secili_aktiflik_degistir,
+        ).pack(side="left")
+
+        self.personel_liste_frame = ctk.CTkFrame(
+            liste_panel
+        )
         self.personel_liste_frame.pack(
             fill="both",
             expand=True,
-            padx=10,
-            pady=10
+            padx=20,
+            pady=(0, 20),
         )
 
         self.personel_listele()
@@ -10005,6 +10099,127 @@ class RedboxOS(ctk.CTk):
                 aktif_personeller[0]
             )
 
+    def personel_form_goster(self):
+        self.personel_liste_panel.pack_forget()
+        self.personel_form_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+
+    def personel_liste_goster(self):
+        self.personel_form_panel.pack_forget()
+        self.personel_liste_panel.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10,
+        )
+        self.personel_listele()
+
+    def personel_filtre_temizle(self):
+        self.personel_arama.delete(0, "end")
+        self.personel_listele()
+
+    def personel_secili_aktiflik_degistir(self):
+        secim = self.personel_tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Kayıt Seçilmedi",
+                (
+                    "Durumunu değiştirmek için "
+                    "tablodan personel seçin."
+                ),
+            )
+            return
+
+        degerler = self.personel_tree.item(
+            secim[0],
+            "values",
+        )
+        mevcut_aktif = (
+            1
+            if degerler[2] == "AKTİF"
+            else 0
+        )
+
+        self.personel_aktiflik_degistir(
+            int(secim[0]),
+            mevcut_aktif,
+        )
+
+    def personel_ozet_guncelle(self, arama=""):
+        like = f"%{arama.casefold()}%"
+        conn = get_connection()
+        conn.create_function(
+            "TR_CASEFOLD",
+            1,
+            lambda value: (
+                str(value).casefold()
+                if value is not None
+                else ""
+            ),
+        )
+
+        try:
+            ozet = conn.execute("""
+                SELECT
+                    COUNT(DISTINCT p.id) AS toplam,
+                    COUNT(
+                        DISTINCT CASE
+                            WHEN p.aktif = 1 THEN p.id
+                        END
+                    ) AS aktif,
+                    COUNT(
+                        DISTINCT CASE
+                            WHEN p.aktif = 0 THEN p.id
+                        END
+                    ) AS pasif,
+                    COUNT(
+                        DISTINCT CASE
+                            WHEN py.aktif = 1 THEN p.id
+                        END
+                    ) AS yetkili
+                FROM personeller p
+                LEFT JOIN personel_yetkileri py
+                  ON py.personel_id = p.id
+                WHERE (
+                    ? = ''
+                    OR TR_CASEFOLD(p.ad_soyad) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(p.gorev, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(p.aciklama, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(py.yetki_kodu, '')
+                    ) LIKE ?
+                )
+            """, (
+                arama,
+                like,
+                like,
+                like,
+                like,
+            )).fetchone()
+        finally:
+            conn.close()
+
+        degerler = (
+            ozet["toplam"],
+            ozet["aktif"],
+            ozet["pasif"],
+            ozet["yetkili"],
+        )
+
+        for label, deger in zip(
+            self.personel_kpi_labels,
+            degerler,
+        ):
+            label.configure(text=str(int(deger or 0)))
 
     def personel_yetki_secildi(
         self,
@@ -10270,8 +10485,10 @@ class RedboxOS(ctk.CTk):
                 )
             )
 
-            self.personel_form_temizle()
-            self.personel_listele()
+            self.personel()
+            self.personel_form_goster()
+            self.personel_yetki_secim.set(ad_soyad)
+            self.personel_yetki_secildi(ad_soyad)
 
         except ValueError as hata:
             messagebox.showerror(
@@ -10371,7 +10588,7 @@ class RedboxOS(ctk.CTk):
 
             conn.commit()
 
-            self.personel_listele()
+            self.personel()
 
         except ValueError as hata:
             messagebox.showerror(
@@ -10398,128 +10615,239 @@ class RedboxOS(ctk.CTk):
 
 
     def personel_listele(self):
-        conn = None
+        for widget in (
+            self.personel_liste_frame.winfo_children()
+        ):
+            widget.destroy()
+
+        arama = ""
+        if hasattr(self, "personel_arama"):
+            arama = self.personel_arama.get().strip()
+
+        like = f"%{arama.casefold()}%"
+        conn = get_connection()
+        conn.create_function(
+            "TR_CASEFOLD",
+            1,
+            lambda value: (
+                str(value).casefold()
+                if value is not None
+                else ""
+            ),
+        )
 
         try:
-            for widget in (
-                self.personel_liste_frame
-                .winfo_children()
-            ):
-                widget.destroy()
-
-            conn = get_connection()
-
-            rows = conn.execute(
-                """
+            rows = conn.execute("""
                 SELECT
-                    id,
-                    ad_soyad,
-                    gorev,
-                    aktif,
-                    aciklama
-                FROM personeller
+                    p.id,
+                    p.ad_soyad,
+                    p.gorev,
+                    p.aktif,
+                    p.aciklama,
+                    GROUP_CONCAT(
+                        CASE
+                            WHEN py.aktif = 1
+                            THEN py.yetki_kodu
+                        END,
+                        ', '
+                    ) AS yetkiler
+                FROM personeller p
+                LEFT JOIN personel_yetkileri py
+                  ON py.personel_id = p.id
+                WHERE (
+                    ? = ''
+                    OR TR_CASEFOLD(p.ad_soyad) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(p.gorev, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(p.aciklama, '')
+                    ) LIKE ?
+                    OR TR_CASEFOLD(
+                        COALESCE(py.yetki_kodu, '')
+                    ) LIKE ?
+                )
+                GROUP BY
+                    p.id,
+                    p.ad_soyad,
+                    p.gorev,
+                    p.aktif,
+                    p.aciklama
                 ORDER BY
-                    aktif DESC,
-                    ad_soyad COLLATE NOCASE
-                """
-            ).fetchall()
+                    p.aktif DESC,
+                    p.ad_soyad COLLATE NOCASE
+            """, (
+                arama,
+                like,
+                like,
+                like,
+                like,
+            )).fetchall()
+        finally:
+            conn.close()
 
-            if not rows:
-                ctk.CTkLabel(
-                    self.personel_liste_frame,
-                    text=(
-                        "Henüz personel kaydı "
-                        "bulunmuyor."
-                    )
-                ).pack(
-                    anchor="w",
-                    padx=15,
-                    pady=15
-                )
+        self.personel_ozet_guncelle(arama)
 
-                return
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure(
+            "Personnel.Treeview",
+            background="#292929",
+            foreground="#F3F4F6",
+            fieldbackground="#292929",
+            borderwidth=0,
+            rowheight=40,
+            font=("Arial", 12),
+        )
+        style.configure(
+            "Personnel.Treeview.Heading",
+            background="#1F2937",
+            foreground="#F9FAFB",
+            relief="flat",
+            font=("Arial", 11, "bold"),
+        )
+        style.map(
+            "Personnel.Treeview",
+            background=[("selected", "#1F6AA5")],
+            foreground=[("selected", "#FFFFFF")],
+        )
 
-            for row in rows:
-                kart = ctk.CTkFrame(
-                    self.personel_liste_frame
-                )
+        tree_area = ctk.CTkFrame(
+            self.personel_liste_frame
+        )
+        tree_area.pack(
+            fill="both",
+            expand=True,
+        )
+        tree_area.grid_rowconfigure(0, weight=1)
+        tree_area.grid_columnconfigure(0, weight=1)
 
-                kart.pack(
-                    fill="x",
-                    padx=5,
-                    pady=5
-                )
+        columns = (
+            "ad",
+            "gorev",
+            "durum",
+            "yetkiler",
+            "aciklama",
+        )
 
-                durum = (
-                    "AKTİF"
-                    if row["aktif"] == 1
-                    else "PASİF"
-                )
+        self.personel_tree = ttk.Treeview(
+            tree_area,
+            columns=columns,
+            show="headings",
+            style="Personnel.Treeview",
+            selectmode="browse",
+        )
 
-                metin = (
-                    f'{row["ad_soyad"]}\n'
-                    f'GÖREV: '
-                    f'{row["gorev"] or "-"}  |  '
-                    f'DURUM: {durum}'
-                )
+        headings = (
+            ("ad", "AD SOYAD", 190, "w"),
+            ("gorev", "ANA GÖREV / ÜNVAN", 180, "w"),
+            ("durum", "DURUM", 90, "center"),
+            ("yetkiler", "GÖREV / YETKİLER", 310, "w"),
+            ("aciklama", "AÇIKLAMA", 250, "w"),
+        )
 
-                if row["aciklama"]:
-                    metin += (
-                        "\nAÇIKLAMA: "
-                        + row["aciklama"]
-                    )
-
-                ctk.CTkLabel(
-                    kart,
-                    text=metin,
-                    justify="left",
-                    font=("Arial", 14)
-                ).pack(
-                    side="left",
-                    anchor="w",
-                    padx=20,
-                    pady=15
-                )
-
-                buton_metni = (
-                    "PASİFE AL"
-                    if row["aktif"] == 1
-                    else "AKTİF ET"
-                )
-
-                ctk.CTkButton(
-                    kart,
-                    text=buton_metni,
-                    width=120,
-                    command=lambda
-                    personel_id=row["id"],
-                    mevcut_aktif=row["aktif"]:
-                    self.personel_aktiflik_degistir(
-                        personel_id,
-                        mevcut_aktif
-                    )
-                ).pack(
-                    side="right",
-                    padx=20,
-                    pady=15
-                )
-
-        except Exception as hata:
-            messagebox.showerror(
-                "Sistem Hatası",
-                (
-                    "Personel listesi "
-                    "yüklenemedi:\n"
-                    f"{hata}"
-                )
+        for column, title, width, anchor in headings:
+            self.personel_tree.heading(
+                column,
+                text=title,
+                anchor=anchor,
+            )
+            self.personel_tree.column(
+                column,
+                width=width,
+                minwidth=80,
+                anchor=anchor,
+                stretch=True,
             )
 
-        finally:
-            if conn is not None:
-                conn.close()
+        self.personel_tree.tag_configure(
+            "even",
+            background="#292929",
+        )
+        self.personel_tree.tag_configure(
+            "odd",
+            background="#303030",
+        )
+        self.personel_tree.tag_configure(
+            "passive",
+            foreground="#9CA3AF",
+        )
 
+        yetki_adlari = {
+            "URETIM": "Üretim",
+            "TEMIZLIK": "Temizlik",
+            "DEPO_KABUL": "Depo Kabul",
+            "PAKETLEME": "Paketleme",
+            "SEVKIYAT": "Sevkiyat",
+        }
 
+        for index, row in enumerate(rows):
+            kodlar = [
+                kod.strip()
+                for kod in (row["yetkiler"] or "").split(",")
+                if kod.strip()
+            ]
+            yetkiler = ", ".join(
+                yetki_adlari.get(kod, kod)
+                for kod in kodlar
+            ) or "-"
 
+            tags = [
+                "even" if index % 2 == 0 else "odd"
+            ]
+
+            if int(row["aktif"]) == 0:
+                tags.append("passive")
+
+            self.personel_tree.insert(
+                "",
+                "end",
+                iid=str(row["id"]),
+                values=(
+                    row["ad_soyad"],
+                    row["gorev"] or "-",
+                    (
+                        "AKTİF"
+                        if int(row["aktif"]) == 1
+                        else "PASİF"
+                    ),
+                    yetkiler,
+                    row["aciklama"] or "-",
+                ),
+                tags=tuple(tags),
+            )
+
+        vertical = ttk.Scrollbar(
+            tree_area,
+            orient="vertical",
+            command=self.personel_tree.yview,
+        )
+        horizontal = ttk.Scrollbar(
+            tree_area,
+            orient="horizontal",
+            command=self.personel_tree.xview,
+        )
+
+        self.personel_tree.configure(
+            yscrollcommand=vertical.set,
+            xscrollcommand=horizontal.set,
+        )
+
+        self.personel_tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+        vertical.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+        )
+        horizontal.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+        )
 
     def sistem(self):
         SystemPage(self).create()
