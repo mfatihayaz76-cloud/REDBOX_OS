@@ -495,14 +495,12 @@ def stok_pdf_olustur(conn):
         mamul_pdf_rows.append(
             (
                 (
-                    "500 g"
+                    "0,5"
                     if gram == 500
-                    else "2.5 kg"
+                    else "2,5"
                 ),
-                koli_ici,
                 paket,
                 paket // koli_ici,
-                paket % koli_ici,
                 f'{item["kg"]:.3f}',
             )
         )
@@ -515,11 +513,6 @@ def stok_pdf_olustur(conn):
         item["paket"]
         for item in ambalaj_ozeti.values()
     )
-    hammadde_toplam_kg = sum(
-        float(row["kalan_kg"])
-        for row in hammadde_rows
-    )
-
     dosya_yolu = pdf_yolu(
         "GENEL_STOK"
     )
@@ -552,32 +545,19 @@ def stok_pdf_olustur(conn):
     pdf_tablo(
         story,
         (
-            "Ambalaj",
-            "Paket / Koli",
-            "Toplam Paket",
-            "Tam Koli",
-            "Açık Paket",
+            "Ambalaj (kg)",
+            "Paket Adedi",
+            "Koli Adedi",
             "Toplam kg",
         ),
         mamul_pdf_rows,
-        (80, 80, 85, 75, 80, 80)
+        (125, 125, 125, 125)
     )
 
     pdf_bolum_basligi(
         story,
         "2. HAMMADDE STOK DURUMU"
     )
-    pdf_bilgi_satiri(
-        story,
-        "Toplam Hammadde Stok",
-        f"{hammadde_toplam_kg:.3f} kg"
-    )
-    pdf_bilgi_satiri(
-        story,
-        "Hammadde Kalem Sayısı",
-        len(hammadde_rows)
-    )
-
     pdf_tablo(
         story,
         (
