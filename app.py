@@ -5242,91 +5242,265 @@ class RedboxOS(ctk.CTk):
             "Tarih aralığı ve müşteri bazlı sevkiyat analizi"
         )
 
-        filtre = ctk.CTkFrame(self.content)
+        ana_frame = ctk.CTkFrame(self.content)
+        ana_frame.pack(
+            fill="both",
+            expand=True,
+            padx=40,
+            pady=(0, 30),
+        )
+
+        filtre = ctk.CTkFrame(ana_frame)
         filtre.pack(
             fill="x",
-            padx=40,
-            pady=(0, 10)
+            padx=10,
+            pady=(10, 12),
         )
 
-        self.rapor_baslangic = self.form_entry(
+        ctk.CTkLabel(
             filtre,
-            "Başlangıç Tarihi",
-            "01.01.2026"
+            text="RAPOR FİLTRELERİ",
+            font=("Arial", 17, "bold"),
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(16, 10),
         )
 
-        self.rapor_bitis = self.form_entry(
+        alanlar = ctk.CTkFrame(
             filtre,
-            "Bitiş Tarihi",
-            datetime.now().strftime("%d.%m.%Y")
+            fg_color="transparent",
+        )
+        alanlar.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 16),
+        )
+
+        for index in range(4):
+            alanlar.grid_columnconfigure(
+                index,
+                weight=1,
+                uniform="shipment_report_filter",
+            )
+
+        ctk.CTkLabel(
+            alanlar,
+            text="Başlangıç Tarihi",
+            anchor="w",
+        ).grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=5,
+            pady=(0, 4),
+        )
+
+        ctk.CTkLabel(
+            alanlar,
+            text="Bitiş Tarihi",
+            anchor="w",
+        ).grid(
+            row=0,
+            column=1,
+            sticky="ew",
+            padx=5,
+            pady=(0, 4),
+        )
+
+        ctk.CTkLabel(
+            alanlar,
+            text="Müşteri / Sevk Noktası",
+            anchor="w",
+        ).grid(
+            row=0,
+            column=2,
+            sticky="ew",
+            padx=5,
+            pady=(0, 4),
+        )
+
+        ctk.CTkLabel(
+            alanlar,
+            text="İşlem",
+            anchor="w",
+        ).grid(
+            row=0,
+            column=3,
+            sticky="ew",
+            padx=5,
+            pady=(0, 4),
+        )
+
+        self.rapor_baslangic = ctk.CTkEntry(
+            alanlar,
+            height=40,
+        )
+        self.rapor_baslangic.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=5,
+        )
+        self.rapor_baslangic.insert(0, "01.01.2026")
+
+        self.rapor_bitis = ctk.CTkEntry(
+            alanlar,
+            height=40,
+        )
+        self.rapor_bitis.grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            padx=5,
+        )
+        self.rapor_bitis.insert(
+            0,
+            datetime.now().strftime("%d.%m.%Y"),
         )
 
         conn = get_connection()
-
-        musteriler = conn.execute("""
-            SELECT
-                id,
-                musteri_adi
-            FROM musteriler
-            WHERE aktif = 1
-            ORDER BY musteri_adi
-        """).fetchall()
-
-        conn.close()
+        try:
+            musteriler = conn.execute("""
+                SELECT
+                    id,
+                    musteri_adi
+                FROM musteriler
+                WHERE aktif = 1
+                ORDER BY musteri_adi
+            """).fetchall()
+        finally:
+            conn.close()
 
         self.rapor_musteri_map = {
             row["musteri_adi"]: row["id"]
             for row in musteriler
         }
 
-        ctk.CTkLabel(
-            filtre,
-            text="Müşteri"
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(5, 2)
-        )
-
         musteri_degerleri = [
             "TÜMÜ",
-            *self.rapor_musteri_map.keys()
+            *self.rapor_musteri_map.keys(),
         ]
 
         self.rapor_musteri_secim = ctk.CTkComboBox(
-            filtre,
-            width=350,
+            alanlar,
             values=musteri_degerleri,
-            state="readonly"
+            state="readonly",
+            height=40,
         )
-        self.rapor_musteri_secim.pack(
-            padx=25,
-            pady=(0, 10)
+        self.rapor_musteri_secim.grid(
+            row=1,
+            column=2,
+            sticky="ew",
+            padx=5,
         )
         self.rapor_musteri_secim.set("TÜMÜ")
 
         ctk.CTkButton(
-            filtre,
+            alanlar,
             text="RAPORU GETİR",
             command=self.sevkiyat_raporu_getir,
-            height=45,
-            width=350,
-            font=("Arial", 14, "bold")
-        ).pack(
-            padx=25,
-            pady=(10, 15)
+            height=40,
+            font=("Arial", 13, "bold"),
+        ).grid(
+            row=1,
+            column=3,
+            sticky="ew",
+            padx=5,
         )
 
         self.sevkiyat_rapor_sonuc = ctk.CTkScrollableFrame(
-            self.content
+            ana_frame
         )
         self.sevkiyat_rapor_sonuc.pack(
             fill="both",
             expand=True,
-            padx=40,
-            pady=(0, 30)
+            padx=10,
+            pady=(0, 10),
         )
 
+        ctk.CTkLabel(
+            self.sevkiyat_rapor_sonuc,
+            text=(
+                "Rapor oluşturmak için tarih aralığını "
+                "ve müşteri filtresini seçin."
+            ),
+            font=("Arial", 15),
+            text_color="#A3A3A3",
+        ).pack(pady=35)
+
+    def sevkiyat_rapor_tablo(
+        self,
+        baslik,
+        sutunlar,
+        satirlar,
+    ):
+        ctk.CTkLabel(
+            self.sevkiyat_rapor_sonuc,
+            text=baslik,
+            font=("Arial", 18, "bold"),
+        ).pack(
+            anchor="w",
+            padx=15,
+            pady=(18, 8),
+        )
+
+        tablo = ctk.CTkFrame(
+            self.sevkiyat_rapor_sonuc,
+            fg_color="transparent",
+        )
+        tablo.pack(
+            fill="x",
+            padx=10,
+            pady=(0, 10),
+        )
+
+        for index in range(len(sutunlar)):
+            tablo.grid_columnconfigure(
+                index,
+                weight=1,
+                uniform="shipment_report_table",
+            )
+
+        for column, baslik_metni in enumerate(sutunlar):
+            ctk.CTkLabel(
+                tablo,
+                text=baslik_metni,
+                height=38,
+                fg_color="#1F2937",
+                font=("Arial", 10, "bold"),
+                wraplength=135,
+            ).grid(
+                row=0,
+                column=column,
+                sticky="nsew",
+                padx=1,
+                pady=1,
+            )
+
+        for row_index, satir in enumerate(satirlar, 1):
+            renk = (
+                "#292929"
+                if row_index % 2
+                else "#303030"
+            )
+
+            for column, deger in enumerate(satir):
+                ctk.CTkLabel(
+                    tablo,
+                    text=str(deger),
+                    height=38,
+                    fg_color=renk,
+                    font=("Arial", 10),
+                    justify="center",
+                    wraplength=135,
+                ).grid(
+                    row=row_index,
+                    column=column,
+                    sticky="nsew",
+                    padx=1,
+                    pady=1,
+                )
 
     def sevkiyat_raporu_getir(self):
         try:
@@ -5501,55 +5675,59 @@ class RedboxOS(ctk.CTk):
                 for row in filtreli
             )
 
-            ctk.CTkLabel(
+            kpi_alani = ctk.CTkFrame(
                 self.sevkiyat_rapor_sonuc,
-                text="RAPOR ÖZETİ",
-                font=("Arial", 22, "bold")
-            ).pack(
-                anchor="w",
-                padx=15,
-                pady=(15, 10)
+                fg_color="transparent",
             )
-
-            ozet = ctk.CTkFrame(
-                self.sevkiyat_rapor_sonuc
-            )
-            ozet.pack(
+            kpi_alani.pack(
                 fill="x",
-                padx=10,
-                pady=(0, 15)
+                padx=5,
+                pady=(10, 12),
             )
 
-            ozet_metin = (
-                f"SEVKİYAT SAYISI: {toplam_sevkiyat}\n"
-                f"SEVK EDİLEN NOKTA: "
-                f"{len(musteri_adlari)}\n"
-                f"TOPLAM KOLİ: {toplam_koli}\n"
-                f"AÇIK PAKET: {toplam_acik}\n"
-                f"TOPLAM PAKET: {toplam_paket}\n"
-                f"TOPLAM KG: {toplam_kg:.3f} kg"
+            kpi_verileri = (
+                ("SEVKİYAT", toplam_sevkiyat),
+                ("MÜŞTERİ", len(musteri_adlari)),
+                ("TOPLAM KOLİ", toplam_koli),
+                ("AÇIK PAKET", toplam_acik),
+                ("TOPLAM PAKET", toplam_paket),
+                ("SEVK EDİLEN KG", f"{toplam_kg:.3f}"),
             )
 
-            ctk.CTkLabel(
-                ozet,
-                text=ozet_metin,
-                justify="left",
-                font=("Arial", 17, "bold")
-            ).pack(
-                anchor="w",
-                padx=20,
-                pady=15
-            )
+            for index in range(len(kpi_verileri)):
+                kpi_alani.grid_columnconfigure(
+                    index,
+                    weight=1,
+                    uniform="shipment_report_kpi",
+                )
 
-            ctk.CTkLabel(
-                self.sevkiyat_rapor_sonuc,
-                text="MÜŞTERİ / SEVK NOKTASI SONUÇLARI",
-                font=("Arial", 22, "bold")
-            ).pack(
-                anchor="w",
-                padx=15,
-                pady=(10, 10)
-            )
+            for index, (baslik, deger) in enumerate(
+                kpi_verileri
+            ):
+                kart = ctk.CTkFrame(
+                    kpi_alani,
+                    height=80,
+                )
+                kart.grid(
+                    row=0,
+                    column=index,
+                    sticky="nsew",
+                    padx=4,
+                )
+                kart.grid_propagate(False)
+
+                ctk.CTkLabel(
+                    kart,
+                    text=baslik,
+                    font=("Arial", 10, "bold"),
+                    text_color="#A3A3A3",
+                ).pack(pady=(12, 3))
+
+                ctk.CTkLabel(
+                    kart,
+                    text=str(deger),
+                    font=("Arial", 18, "bold"),
+                ).pack()
 
             musteri_gruplari = {}
 
@@ -5558,6 +5736,8 @@ class RedboxOS(ctk.CTk):
                     row["musteri"],
                     []
                 ).append(row)
+
+            musteri_satirlari = []
 
             for musteri, kayitlar in sorted(
                 musteri_gruplari.items()
@@ -5571,26 +5751,19 @@ class RedboxOS(ctk.CTk):
                 ]
 
                 musteri_koli = sum(
-                    int(
-                        row["sevk_koli_adedi"] or 0
-                    )
+                    int(row["sevk_koli_adedi"] or 0)
                     for row in kayitlar
                 )
-
                 musteri_acik = sum(
                     int(
-                        row[
-                            "sevk_acik_paket_adedi"
-                        ] or 0
+                        row["sevk_acik_paket_adedi"] or 0
                     )
                     for row in kayitlar
                 )
-
                 musteri_paket = sum(
                     int(row["toplam_paket"] or 0)
                     for row in kayitlar
                 )
-
                 musteri_kg = sum(
                     float(row["toplam_kg"] or 0)
                     for row in kayitlar
@@ -5600,171 +5773,82 @@ class RedboxOS(ctk.CTk):
                 lotlar = set()
 
                 for row in kayitlar:
-                    for detay in detay_map.get(
-                        row["id"],
-                        []
-                    ):
-                        gram = detay["ambalaj_gram"]
-
+                    for detay in detay_map.get(row["id"], []):
+                        gram = int(detay["ambalaj_gram"])
                         ambalaj_toplam[gram] = (
-                            ambalaj_toplam.get(
-                                gram,
-                                0
-                            )
-                            + int(
-                                detay["paket_adedi"]
-                            )
+                            ambalaj_toplam.get(gram, 0)
+                            + int(detay["paket_adedi"])
                         )
+                        lotlar.add(detay["urun_lot_no"])
 
-                        lotlar.add(
-                            detay["urun_lot_no"]
-                        )
+                musteri_satirlari.append((
+                    musteri,
+                    min(tarihler).strftime("%d.%m.%Y"),
+                    max(tarihler).strftime("%d.%m.%Y"),
+                    len(kayitlar),
+                    musteri_koli,
+                    musteri_acik,
+                    musteri_paket,
+                    ambalaj_toplam.get(500, 0),
+                    ambalaj_toplam.get(2500, 0),
+                    f"{musteri_kg:.3f}",
+                    ", ".join(sorted(lotlar)) or "-",
+                ))
 
-                ambalaj_satirlari = []
-
-                for gram, adet in sorted(
-                    ambalaj_toplam.items()
-                ):
-                    ambalaj = (
-                        "500 g"
-                        if gram == 500
-                        else "2.5 kg"
-                        if gram == 2500
-                        else f"{gram} g"
-                    )
-
-                    ambalaj_satirlari.append(
-                        f"{ambalaj} PAKET: {adet}"
-                    )
-
-                kart = ctk.CTkFrame(
-                    self.sevkiyat_rapor_sonuc
-                )
-                kart.pack(
-                    fill="x",
-                    padx=10,
-                    pady=5
-                )
-
-                metin = (
-                    f"{musteri}\n"
-                    f"İlk Sevkiyat: "
-                    f"{min(tarihler).strftime('%d.%m.%Y')}\n"
-                    f"Son Sevkiyat: "
-                    f"{max(tarihler).strftime('%d.%m.%Y')}\n"
-                    f"Sevkiyat Sayısı: {len(kayitlar)}\n"
-                    f"Toplam Koli: {musteri_koli}\n"
-                    f"Açık Paket: {musteri_acik}\n"
-                    f"Toplam Paket: {musteri_paket}\n"
-                    + "\n".join(ambalaj_satirlari)
-                    + "\n"
-                    f"Toplam Kg: {musteri_kg:.3f} kg\n"
-                    f"Lotlar: "
-                    f"{', '.join(sorted(lotlar))}"
-                )
-
-                ctk.CTkLabel(
-                    kart,
-                    text=metin,
-                    justify="left",
-                    font=("Arial", 14)
-                ).pack(
-                    anchor="w",
-                    padx=20,
-                    pady=15
-                )
-
-            ctk.CTkLabel(
-                self.sevkiyat_rapor_sonuc,
-                text="SEVKİYAT DETAYLARI",
-                font=("Arial", 22, "bold")
-            ).pack(
-                anchor="w",
-                padx=15,
-                pady=(20, 10)
+            self.sevkiyat_rapor_tablo(
+                "MÜŞTERİ / SEVK NOKTASI ÖZETİ",
+                (
+                    "MÜŞTERİ",
+                    "İLK SEVK",
+                    "SON SEVK",
+                    "SEVKİYAT",
+                    "KOLİ",
+                    "AÇIK",
+                    "PAKET",
+                    "500 G",
+                    "2.5 KG",
+                    "TOPLAM KG",
+                    "ÜRÜN LOTLARI",
+                ),
+                musteri_satirlari,
             )
 
-            for row in sorted(
-                filtreli,
-                key=lambda x: datetime.strptime(
-                    x["sevkiyat_tarihi"],
-                    "%d.%m.%Y"
+            detay_satirlari = [
+                (
+                    row["sevkiyat_tarihi"],
+                    row["musteri"],
+                    int(row["sevk_koli_adedi"] or 0),
+                    int(
+                        row["sevk_acik_paket_adedi"] or 0
+                    ),
+                    int(row["toplam_paket"] or 0),
+                    f'{float(row["toplam_kg"] or 0):.3f}',
+                    row["arac_plaka"] or "-",
+                    row["belge_no"] or "-",
+                    (
+                        "EVET"
+                        if row["soguk_zincir"]
+                        else "HAYIR"
+                    ),
+                )
+                for row in filtreli
+            ]
+
+            self.sevkiyat_rapor_tablo(
+                "SEVKİYAT KAYIT DETAYLARI",
+                (
+                    "TARİH",
+                    "MÜŞTERİ",
+                    "KOLİ",
+                    "AÇIK",
+                    "PAKET",
+                    "SEVK KG",
+                    "ARAÇ PLAKA",
+                    "BELGE NO",
+                    "SOĞUK ZİNCİR",
                 ),
-                reverse=True
-            ):
-                sevk_detaylari = detay_map.get(
-                    row["id"],
-                    []
-                )
-
-                detay_satirlari = []
-
-                for detay in sevk_detaylari:
-                    gram = detay["ambalaj_gram"]
-
-                    ambalaj = (
-                        "500 g"
-                        if gram == 500
-                        else "2.5 kg"
-                        if gram == 2500
-                        else f"{gram} g"
-                    )
-
-                    detay_satirlari.append(
-                        f'Lot {detay["urun_lot_no"]} | '
-                        f'{ambalaj} | '
-                        f'{detay["paket_adedi"]} paket | '
-                        f'{detay["sevk_kg"]:.3f} kg'
-                    )
-
-                plaka = (
-                    row["arac_plaka"]
-                    if row["arac_plaka"]
-                    else "-"
-                )
-
-                belge = (
-                    row["belge_no"]
-                    if row["belge_no"]
-                    else "-"
-                )
-
-                soguk = (
-                    "EVET"
-                    if row["soguk_zincir"]
-                    else "HAYIR"
-                )
-
-                kart = ctk.CTkFrame(
-                    self.sevkiyat_rapor_sonuc
-                )
-                kart.pack(
-                    fill="x",
-                    padx=10,
-                    pady=5
-                )
-
-                metin = (
-                    f'{row["sevkiyat_tarihi"]} | '
-                    f'{row["musteri"]}\n'
-                    f'{row["sevk_koli_adedi"]} koli + '
-                    f'{row["sevk_acik_paket_adedi"]} '
-                    f'açık paket\n'
-                    f'Araç Plaka: {plaka} | '
-                    f'Belge No: {belge}\n'
-                    f'Soğuk Zincir: {soguk}\n'
-                    + "\n".join(detay_satirlari)
-                )
-
-                ctk.CTkLabel(
-                    kart,
-                    text=metin,
-                    justify="left"
-                ).pack(
-                    anchor="w",
-                    padx=20,
-                    pady=15
-                )
+                detay_satirlari,
+            )
 
         except ValueError as hata:
             messagebox.showerror(
