@@ -17,91 +17,351 @@ class SystemPage:
         self.app = app
 
     def create(self):
-
         self.app.show_page(
             "SİSTEM",
-            "REDBOX OS Sistem Yönetimi"
+            "REDBOX OS sistem yönetimi ve güvenli bakım merkezi"
         )
 
-        frame = ctk.CTkFrame(self.app.content)
-        frame.pack(
+        ana = ctk.CTkScrollableFrame(
+            self.app.content,
+            corner_radius=14,
+        )
+        ana.pack(
             fill="both",
             expand=True,
-            padx=25,
-            pady=25
+            padx=40,
+            pady=(0, 30),
+        )
+
+        stats = self._system_stats()
+
+        baslik = ctk.CTkFrame(
+            ana,
+            fg_color="transparent",
+        )
+        baslik.pack(
+            fill="x",
+            padx=20,
+            pady=(20, 12),
         )
 
         ctk.CTkLabel(
-            frame,
-            text="SİSTEM YÖNETİMİ",
-            font=("Arial", 24, "bold")
-        ).pack(
-            anchor="w",
+            baslik,
+            text="SİSTEM YÖNETİM MERKEZİ",
+            font=("Arial", 22, "bold"),
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            baslik,
+            text=(
+                f'Aktif kullanıcı: '
+                f'{getattr(self.app, "current_user", {}).get("ad_soyad", "-")}'
+            ),
+            font=("Arial", 12),
+            text_color="#A3A3A3",
+        ).pack(side="right")
+
+        kpi_alani = ctk.CTkFrame(
+            ana,
+            fg_color="transparent",
+        )
+        kpi_alani.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 15),
+        )
+
+        kpi_verileri = (
+            ("VERİTABANI", stats["integrity"].upper()),
+            ("DB BOYUTU", stats["db_size"]),
+            ("YEDEK SAYISI", stats["backup_count"]),
+            ("AKTİF HESAP", stats["active_accounts"]),
+        )
+
+        for index in range(len(kpi_verileri)):
+            kpi_alani.grid_columnconfigure(
+                index,
+                weight=1,
+                uniform="system_kpi",
+            )
+
+        for index, (kart_basligi, deger) in enumerate(
+            kpi_verileri
+        ):
+            kart = ctk.CTkFrame(
+                kpi_alani,
+                height=82,
+            )
+            kart.grid(
+                row=0,
+                column=index,
+                sticky="nsew",
+                padx=5,
+            )
+            kart.grid_propagate(False)
+
+            ctk.CTkLabel(
+                kart,
+                text=kart_basligi,
+                font=("Arial", 10, "bold"),
+                text_color="#A3A3A3",
+            ).pack(pady=(12, 3))
+
+            ctk.CTkLabel(
+                kart,
+                text=str(deger),
+                font=("Arial", 19, "bold"),
+                text_color=(
+                    "#22C55E"
+                    if kart_basligi == "VERİTABANI"
+                    and str(deger).lower() == "ok"
+                    else None
+                ),
+            ).pack()
+
+        moduller = ctk.CTkFrame(
+            ana,
+            fg_color="transparent",
+        )
+        moduller.pack(
+            fill="both",
+            expand=True,
+            padx=15,
+            pady=(0, 20),
+        )
+
+        for column in range(2):
+            moduller.grid_columnconfigure(
+                column,
+                weight=1,
+                uniform="system_modules",
+            )
+
+        for row in range(2):
+            moduller.grid_rowconfigure(
+                row,
+                weight=1,
+            )
+
+        db_kart = ctk.CTkFrame(moduller)
+        db_kart.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+            padx=5,
+            pady=5,
+        )
+
+        self._module_header(
+            db_kart,
+            "VERİTABANI VE YEDEKLEME",
+            (
+                "Canlı veritabanını doğrulanmış şekilde "
+                "yedekleyin veya güvenli geri yükleyin."
+            ),
+        )
+
+        db_butonlar = ctk.CTkFrame(
+            db_kart,
+            fg_color="transparent",
+        )
+        db_butonlar.pack(
+            fill="x",
             padx=20,
-            pady=(20, 10)
+            pady=(10, 20),
         )
 
         ctk.CTkButton(
-            frame,
+            db_butonlar,
             text="VERİTABANINI YEDEKLE",
-            width=260,
             height=42,
-            command=self.backup_database
+            command=self.backup_database,
         ).pack(
-            anchor="w",
-            padx=20,
-            pady=(10,5)
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 5),
         )
 
         ctk.CTkButton(
-            frame,
-            text="VERİTABANINI GERİ YÜKLE",
-            width=260,
+            db_butonlar,
+            text="GÜVENLİ GERİ YÜKLE",
             height=42,
-            command=self.restore_database
+            fg_color="#B45309",
+            command=self.restore_database,
         ).pack(
-            anchor="w",
-            padx=20,
-            pady=5
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(5, 0),
         )
 
+        hesap_kart = ctk.CTkFrame(moduller)
+        hesap_kart.grid(
+            row=0,
+            column=1,
+            sticky="nsew",
+            padx=5,
+            pady=5,
+        )
 
-        ctk.CTkButton(
-            frame,
-            text="FİRMA BİLGİLERİ",
-            width=260,
-            height=42,
-            command=self.company_info
-        ).pack(
-            anchor="w",
-            padx=20,
-            pady=5
+        self._module_header(
+            hesap_kart,
+            "KULLANICI HESAPLARI",
+            (
+                "Personel giriş hesaplarını ve güvenli "
+                "parola yenileme işlemlerini yönetin."
+            ),
         )
 
         if self._hesap_yonetim_yetkisi():
             ctk.CTkButton(
-                frame,
-                text="KULLANICI HESAPLARI",
-                width=260,
+                hesap_kart,
+                text="KULLANICI HESAPLARINI YÖNET",
                 height=42,
                 command=self.account_management,
             ).pack(
+                fill="x",
+                padx=20,
+                pady=(10, 20),
+            )
+        else:
+            ctk.CTkLabel(
+                hesap_kart,
+                text="Yalnız Fatih Ayaz yönetebilir.",
+                text_color="#F59E0B",
+            ).pack(
                 anchor="w",
                 padx=20,
-                pady=5,
+                pady=(15, 25),
             )
 
+        firma_kart = ctk.CTkFrame(moduller)
+        firma_kart.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=5,
+            pady=5,
+        )
+
+        self._module_header(
+            firma_kart,
+            "FİRMA BİLGİLERİ",
+            (
+                "REDBOX Gıda ve Long Potato operasyon "
+                "kimlik bilgilerini görüntüleyin."
+            ),
+        )
+
         ctk.CTkButton(
-            frame,
-            text="AYARLAR",
-            width=260,
+            firma_kart,
+            text="FİRMA BİLGİLERİNİ GÖRÜNTÜLE",
             height=42,
-            command=self.settings
+            command=self.company_info,
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(10, 20),
+        )
+
+        ayar_kart = ctk.CTkFrame(moduller)
+        ayar_kart.grid(
+            row=1,
+            column=1,
+            sticky="nsew",
+            padx=5,
+            pady=5,
+        )
+
+        self._module_header(
+            ayar_kart,
+            "OPERASYON AYARLARI",
+            (
+                "Aktif ambalaj, parti, proses suyu ve "
+                "depolama parametrelerini görüntüleyin."
+            ),
+        )
+
+        ctk.CTkButton(
+            ayar_kart,
+            text="SİSTEM AYARLARINI GÖRÜNTÜLE",
+            height=42,
+            command=self.settings,
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(10, 20),
+        )
+
+    def _module_header(self, parent, title, description):
+        ctk.CTkLabel(
+            parent,
+            text=title,
+            font=("Arial", 16, "bold"),
         ).pack(
             anchor="w",
             padx=20,
-            pady=5
+            pady=(20, 5),
         )
+
+        ctk.CTkLabel(
+            parent,
+            text=description,
+            font=("Arial", 12),
+            text_color="#A3A3A3",
+            justify="left",
+            wraplength=520,
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(0, 5),
+        )
+
+    def _system_stats(self):
+        db_path = Path("database/redbox_os.db")
+        integrity = "missing"
+        active_accounts = 0
+
+        if db_path.exists():
+            conn = sqlite3.connect(
+                f"file:{db_path.resolve()}?mode=ro",
+                uri=True,
+            )
+            try:
+                integrity = conn.execute(
+                    "PRAGMA integrity_check"
+                ).fetchone()[0]
+                active_accounts = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM kullanici_hesaplari
+                    WHERE aktif = 1
+                    """
+                ).fetchone()[0]
+            finally:
+                conn.close()
+
+        size_bytes = (
+            db_path.stat().st_size
+            if db_path.exists()
+            else 0
+        )
+        db_size = f"{size_bytes / 1024:.1f} KB"
+
+        backup_dir = Path("backups")
+        backup_count = (
+            len(list(backup_dir.glob("*.db")))
+            if backup_dir.exists()
+            else 0
+        )
+
+        return {
+            "integrity": integrity,
+            "db_size": db_size,
+            "backup_count": backup_count,
+            "active_accounts": active_accounts,
+        }
 
     def _hesap_yonetim_yetkisi(self):
         user = getattr(self.app, "current_user", {})
@@ -486,82 +746,556 @@ class SystemPage:
         )
         self._account_personel_secildi(personel)
 
+    def _database_integrity(self, db_path):
+        conn = sqlite3.connect(
+            f"file:{Path(db_path).resolve()}?mode=ro",
+            uri=True,
+        )
+        try:
+            return conn.execute(
+                "PRAGMA integrity_check"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+    def _verified_database_backup(
+        self,
+        source,
+        target,
+    ):
+        source = Path(source)
+        target = Path(target)
+        target.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        source_integrity = self._database_integrity(
+            source
+        )
+
+        if source_integrity != "ok":
+            raise RuntimeError(
+                "Canlı veritabanı bütünlük kontrolü "
+                f"başarısız: {source_integrity}"
+            )
+
+        source_conn = sqlite3.connect(
+            str(source)
+        )
+        target_conn = sqlite3.connect(
+            str(target)
+        )
+
+        try:
+            source_conn.backup(target_conn)
+            target_conn.commit()
+        finally:
+            target_conn.close()
+            source_conn.close()
+
+        backup_integrity = self._database_integrity(
+            target
+        )
+
+        if backup_integrity != "ok":
+            target.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Oluşturulan yedeğin bütünlük "
+                f"kontrolü başarısız: {backup_integrity}"
+            )
+
+        return target
+
     def backup_database(self):
+        source = Path("database/redbox_os.db")
 
-        kaynak = Path("database/redbox_os.db")
-
-        if not kaynak.exists():
+        if not source.exists():
             messagebox.showerror(
-                "Hata",
-                "Veritabanı bulunamadı."
+                "Veritabanı Yedeği",
+                "Canlı veritabanı bulunamadı.",
             )
             return
 
-        backup_dir = Path("backups")
-        backup_dir.mkdir(exist_ok=True)
-
-        hedef = backup_dir / (
-            "redbox_os_" +
-            datetime.now().strftime("%Y%m%d_%H%M%S") +
-            ".db"
+        timestamp = datetime.now().strftime(
+            "%Y%m%d_%H%M%S"
+        )
+        target = Path("backups") / (
+            f"redbox_os_manual_{timestamp}.db"
         )
 
-        shutil.copy2(kaynak, hedef)
+        try:
+            self._verified_database_backup(
+                source,
+                target,
+            )
+        except Exception as exc:
+            messagebox.showerror(
+                "Veritabanı Yedeği",
+                (
+                    "Yedek oluşturulamadı.\n\n"
+                    f"{exc}"
+                ),
+            )
+            return
 
         messagebox.showinfo(
-            "Başarılı",
-            f"Yedek oluşturuldu.\n\n{hedef.name}"
+            "Veritabanı Yedeği",
+            (
+                "Doğrulanmış veritabanı yedeği "
+                "başarıyla oluşturuldu.\n\n"
+                f"Dosya: {target.name}\n"
+                "Bütünlük: OK"
+            ),
         )
 
+        self.create()
 
     def restore_database(self):
-        from pathlib import Path
         from tkinter import filedialog
-        from tkinter import messagebox
-        import shutil
 
-        secilen = filedialog.askopenfilename(
+        selected = filedialog.askopenfilename(
             title="REDBOX OS Yedek Dosyası Seç",
             initialdir="backups",
             filetypes=[
                 ("SQLite Database", "*.db"),
-                ("Tüm Dosyalar", "*.*")
-            ]
+                ("Tüm Dosyalar", "*.*"),
+            ],
         )
 
-        if not secilen:
+        if not selected:
             return
 
-        hedef = Path("database/redbox_os.db")
+        selected_path = Path(selected)
+        live_path = Path("database/redbox_os.db")
 
         try:
-            shutil.copy2(secilen, hedef)
-
-            messagebox.showinfo(
-                "Başarılı",
-                "Veritabanı başarıyla geri yüklendi.\n\nProgramı yeniden başlatınız."
+            selected_integrity = (
+                self._database_integrity(
+                    selected_path
+                )
             )
 
-        except Exception as e:
+            if selected_integrity != "ok":
+                raise RuntimeError(
+                    "Seçilen yedek geçerli değil. "
+                    f"Bütünlük sonucu: {selected_integrity}"
+                )
+
+            confirmation = messagebox.askyesno(
+                "Güvenli Geri Yükleme",
+                (
+                    "Seçilen doğrulanmış yedek canlı "
+                    "veritabanının yerine yüklenecek.\n\n"
+                    f"Dosya: {selected_path.name}\n"
+                    "Bütünlük: OK\n\n"
+                    "İşlem öncesinde canlı veritabanının "
+                    "otomatik güvenlik yedeği alınacaktır.\n\n"
+                    "Devam edilsin mi?"
+                ),
+            )
+
+            if not confirmation:
+                return
+
+            timestamp = datetime.now().strftime(
+                "%Y%m%d_%H%M%S"
+            )
+            safety_backup = Path("backups") / (
+                "redbox_os_before_restore_"
+                f"{timestamp}.db"
+            )
+
+            self._verified_database_backup(
+                live_path,
+                safety_backup,
+            )
+
+            temporary = live_path.with_name(
+                "redbox_os_restore_pending.db"
+            )
+            temporary.unlink(missing_ok=True)
+
+            source_conn = sqlite3.connect(
+                f"file:{selected_path.resolve()}?mode=ro",
+                uri=True,
+            )
+            target_conn = sqlite3.connect(
+                str(temporary)
+            )
+
+            try:
+                source_conn.backup(target_conn)
+                target_conn.commit()
+            finally:
+                target_conn.close()
+                source_conn.close()
+
+            temporary_integrity = (
+                self._database_integrity(
+                    temporary
+                )
+            )
+
+            if temporary_integrity != "ok":
+                temporary.unlink(missing_ok=True)
+                raise RuntimeError(
+                    "Geri yükleme kopyası doğrulanamadı. "
+                    f"Sonuç: {temporary_integrity}"
+                )
+
+            os.replace(
+                temporary,
+                live_path,
+            )
+
+            final_integrity = (
+                self._database_integrity(
+                    live_path
+                )
+            )
+
+            if final_integrity != "ok":
+                raise RuntimeError(
+                    "Canlı veritabanının son doğrulaması "
+                    f"başarısız: {final_integrity}"
+                )
+
+        except Exception as exc:
             messagebox.showerror(
-                "Hata",
-                str(e)
+                "Geri Yükleme Hatası",
+                str(exc),
             )
+            return
+
+        messagebox.showinfo(
+            "Güvenli Geri Yükleme",
+            (
+                "Veritabanı başarıyla geri yüklendi "
+                "ve doğrulandı.\n\n"
+                f"Ön yedek: {safety_backup.name}\n"
+                "Bütünlük: OK\n\n"
+                "Uygulamayı şimdi kapatıp yeniden açın."
+            ),
+        )
 
 
     def company_info(self):
-        from tkinter import messagebox
+        window = ctk.CTkToplevel(self.app)
+        window.title("REDBOX OS — Firma Bilgileri")
+        window.geometry("720x610")
+        window.minsize(650, 540)
+        window.transient(self.app)
+        window.grab_set()
 
-        messagebox.showinfo(
-            "REDBOX GIDA",
-            "Firma Bilgileri modülü Sprint 21F içerisinde tamamlanacaktır."
+        body = ctk.CTkScrollableFrame(
+            window,
+            corner_radius=14,
+        )
+        body.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=20,
         )
 
+        ctk.CTkLabel(
+            body,
+            text="FİRMA BİLGİLERİ",
+            font=("Arial", 24, "bold"),
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(20, 5),
+        )
+
+        ctk.CTkLabel(
+            body,
+            text=(
+                "REDBOX OS operasyon kimliği ve "
+                "üretim sistemi özeti"
+            ),
+            font=("Arial", 13),
+            text_color="#A3A3A3",
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(0, 20),
+        )
+
+        bilgiler = (
+            ("FİRMA / İŞLETME", "REDBOX GIDA"),
+            ("ÜRÜN / MARKA", "LONG POTATO"),
+            ("YÖNETİM SİSTEMİ", "REDBOX OS"),
+            ("ÜRETİM MODELİ", "Parti ve lot bazlı üretim"),
+            (
+                "İZLENEBİLİRLİK",
+                "Hammadde → üretim → paketleme → sevkiyat",
+            ),
+            (
+                "AKTİF AMBALAJLAR",
+                "500 g ve 2.5 kg",
+            ),
+            (
+                "VERİ KAYNAĞI",
+                "SQLite — database/redbox_os.db",
+            ),
+        )
+
+        table = ctk.CTkFrame(body)
+        table.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 15),
+        )
+        table.grid_columnconfigure(1, weight=1)
+
+        for row_index, (label, value) in enumerate(
+            bilgiler
+        ):
+            color = (
+                "#292929"
+                if row_index % 2 == 0
+                else "#303030"
+            )
+
+            ctk.CTkLabel(
+                table,
+                text=label,
+                width=190,
+                height=44,
+                anchor="w",
+                font=("Arial", 12, "bold"),
+                fg_color=color,
+            ).grid(
+                row=row_index,
+                column=0,
+                sticky="nsew",
+                padx=(1, 0),
+                pady=1,
+            )
+
+            ctk.CTkLabel(
+                table,
+                text=value,
+                height=44,
+                anchor="w",
+                justify="left",
+                wraplength=410,
+                fg_color=color,
+            ).grid(
+                row=row_index,
+                column=1,
+                sticky="nsew",
+                padx=(0, 1),
+                pady=1,
+            )
+
+        ctk.CTkLabel(
+            body,
+            text=(
+                "Firma adresi, iletişim bilgileri ve resmi "
+                "kayıt bilgileri sisteme tanımlandığında "
+                "bu bölümden merkezi olarak yönetilecektir."
+            ),
+            font=("Arial", 12),
+            text_color="#A3A3A3",
+            justify="left",
+            wraplength=620,
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(5, 20),
+        )
+
+        ctk.CTkButton(
+            body,
+            text="KAPAT",
+            height=42,
+            command=window.destroy,
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(0, 20),
+        )
+
+        window.after(
+            150,
+            window.focus_force,
+        )
 
     def settings(self):
-        from tkinter import messagebox
+        conn = get_connection()
 
-        messagebox.showinfo(
-            "Ayarlar",
-            "Ayarlar modülü Sprint 21G içerisinde tamamlanacaktır."
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    anahtar,
+                    deger,
+                    aciklama
+                FROM sistem_ayarlari
+                ORDER BY anahtar
+                """
+            ).fetchall()
+        finally:
+            conn.close()
+
+        window = ctk.CTkToplevel(self.app)
+        window.title("REDBOX OS — Operasyon Ayarları")
+        window.geometry("900x680")
+        window.minsize(780, 560)
+        window.transient(self.app)
+        window.grab_set()
+
+        body = ctk.CTkScrollableFrame(
+            window,
+            corner_radius=14,
+        )
+        body.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=20,
+        )
+
+        ctk.CTkLabel(
+            body,
+            text="OPERASYON AYARLARI",
+            font=("Arial", 24, "bold"),
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(20, 5),
+        )
+
+        ctk.CTkLabel(
+            body,
+            text=(
+                "Üretim, ambalaj, depolama ve raf ömrü "
+                "için kullanılan merkezi sistem parametreleri"
+            ),
+            font=("Arial", 13),
+            text_color="#A3A3A3",
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(0, 20),
+        )
+
+        table = ctk.CTkFrame(body)
+        table.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 15),
+        )
+        table.grid_columnconfigure(0, weight=2)
+        table.grid_columnconfigure(1, weight=1)
+        table.grid_columnconfigure(2, weight=3)
+
+        headers = (
+            ("AYAR KODU", 0),
+            ("DEĞER", 1),
+            ("AÇIKLAMA", 2),
+        )
+
+        for title, column in headers:
+            ctk.CTkLabel(
+                table,
+                text=title,
+                height=42,
+                font=("Arial", 12, "bold"),
+                fg_color="#1E293B",
+            ).grid(
+                row=0,
+                column=column,
+                sticky="nsew",
+                padx=1,
+                pady=1,
+            )
+
+        for row_index, row in enumerate(
+            rows,
+            start=1,
+        ):
+            color = (
+                "#292929"
+                if row_index % 2 == 1
+                else "#303030"
+            )
+
+            values = (
+                row["anahtar"],
+                row["deger"],
+                row["aciklama"] or "-",
+            )
+
+            for column, value in enumerate(values):
+                ctk.CTkLabel(
+                    table,
+                    text=str(value),
+                    height=46,
+                    anchor=(
+                        "center"
+                        if column == 1
+                        else "w"
+                    ),
+                    justify="left",
+                    wraplength=360,
+                    fg_color=color,
+                    font=(
+                        ("Arial", 12, "bold")
+                        if column == 1
+                        else ("Arial", 12)
+                    ),
+                ).grid(
+                    row=row_index,
+                    column=column,
+                    sticky="nsew",
+                    padx=1,
+                    pady=1,
+                )
+
+        warning = ctk.CTkFrame(
+            body,
+            fg_color="#422006",
+            corner_radius=10,
+        )
+        warning.pack(
+            fill="x",
+            padx=20,
+            pady=(5, 15),
+        )
+
+        ctk.CTkLabel(
+            warning,
+            text=(
+                "Bu parametreler üretim hesaplarını ve stok "
+                "hareketlerini doğrudan etkiler. Güvenlik "
+                "nedeniyle bu ekranda salt okunur gösterilir."
+            ),
+            font=("Arial", 12, "bold"),
+            text_color="#FBBF24",
+            justify="left",
+            wraplength=760,
+        ).pack(
+            anchor="w",
+            padx=18,
+            pady=15,
+        )
+
+        ctk.CTkButton(
+            body,
+            text="KAPAT",
+            height=42,
+            command=window.destroy,
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(0, 20),
+        )
+
+        window.after(
+            150,
+            window.focus_force,
         )
