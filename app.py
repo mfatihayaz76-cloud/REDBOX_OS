@@ -5790,39 +5790,121 @@ class RedboxOS(ctk.CTk):
             fill="both",
             expand=True,
             padx=40,
-            pady=(0, 30)
-        )
-
-        ust = ctk.CTkFrame(ana_frame)
-        ust.pack(
-            fill="x",
-            padx=10,
-            pady=(10, 5)
-        )
-
-        ctk.CTkLabel(
-            ust,
-            text="ÜRÜN LOTU",
-            font=("Arial", 14, "bold")
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
+            pady=(0, 30),
         )
 
         conn = get_connection()
 
-        lotlar = conn.execute("""
-            SELECT
-                id,
-                urun_lot_no,
-                uretim_tarihi,
-                net_uretim_kg
-            FROM uretim
-            ORDER BY id DESC
-        """).fetchall()
+        try:
+            lotlar = conn.execute("""
+                SELECT
+                    id,
+                    urun_lot_no,
+                    uretim_tarihi,
+                    net_uretim_kg
+                FROM uretim
+                ORDER BY id DESC
+            """).fetchall()
 
-        conn.close()
+            hammadde_lotlari = conn.execute("""
+                SELECT
+                    dk.id,
+                    h.ad AS hammadde,
+                    dk.tedarikci_lot_no,
+                    dk.kabul_tarihi,
+                    dk.tedarikci
+                FROM depo_kabul dk
+                JOIN hammaddeler h
+                  ON h.id = dk.hammadde_id
+                ORDER BY dk.id DESC
+            """).fetchall()
+
+            ozet = conn.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM uretim)
+                        AS urun_lotu,
+                    (SELECT COUNT(*) FROM depo_kabul)
+                        AS hammadde_lotu,
+                    (SELECT COUNT(*) FROM sevkiyat)
+                        AS sevkiyat,
+                    (
+                        SELECT COUNT(
+                            DISTINCT COALESCE(
+                                musteri_id,
+                                musteri
+                            )
+                        )
+                        FROM sevkiyat
+                    ) AS musteri
+            """).fetchone()
+        finally:
+            conn.close()
+
+        baslik = ctk.CTkFrame(
+            ana_frame,
+            fg_color="transparent",
+        )
+        baslik.pack(
+            fill="x",
+            padx=20,
+            pady=(20, 12),
+        )
+
+        ctk.CTkLabel(
+            baslik,
+            text="LOT İZLENEBİLİRLİK MERKEZİ",
+            font=("Arial", 22, "bold"),
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            baslik,
+            text="İleri izleme ve geri çağırma analizi",
+            font=("Arial", 13),
+            text_color="#A3A3A3",
+        ).pack(side="right")
+
+        kpi_alani = ctk.CTkFrame(
+            ana_frame,
+            fg_color="transparent",
+        )
+        kpi_alani.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 15),
+        )
+
+        kpi_verileri = (
+            ("ÜRÜN LOTU", ozet["urun_lotu"]),
+            ("HAMMADDE LOTU", ozet["hammadde_lotu"]),
+            ("SEVKİYAT KAYDI", ozet["sevkiyat"]),
+            ("MÜŞTERİ SAYISI", ozet["musteri"]),
+        )
+
+        for kart_basligi, kart_degeri in kpi_verileri:
+            kart = ctk.CTkFrame(
+                kpi_alani,
+                height=82,
+            )
+            kart.pack(
+                side="left",
+                fill="x",
+                expand=True,
+                padx=5,
+            )
+            kart.pack_propagate(False)
+
+            ctk.CTkLabel(
+                kart,
+                text=kart_basligi,
+                font=("Arial", 11, "bold"),
+                text_color="#A3A3A3",
+            ).pack(pady=(12, 3))
+
+            ctk.CTkLabel(
+                kart,
+                text=str(int(kart_degeri or 0)),
+                font=("Arial", 21, "bold"),
+            ).pack()
 
         self.izlenebilirlik_lot_map = {}
 
@@ -5832,73 +5914,9 @@ class RedboxOS(ctk.CTk):
                 f'{row["uretim_tarihi"]} | '
                 f'{row["net_uretim_kg"]:.3f} kg'
             )
-
             self.izlenebilirlik_lot_map[
                 anahtar
             ] = row["id"]
-
-        lot_degerleri = list(
-            self.izlenebilirlik_lot_map.keys()
-        )
-
-        self.izlenebilirlik_lot_secim = ctk.CTkComboBox(
-            ust,
-            width=500,
-            values=(
-                lot_degerleri
-                if lot_degerleri
-                else [""]
-            ),
-            state="readonly"
-        )
-
-        self.izlenebilirlik_lot_secim.pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 10)
-        )
-
-        self.izlenebilirlik_lot_secim.set("")
-
-        ctk.CTkButton(
-            ust,
-            text="ÜRÜN LOTUNDAN İLERİ İZLE",
-            command=self.izlenebilirlik_getir,
-            width=500,
-            height=45,
-            font=("Arial", 14, "bold")
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(5, 20)
-        )
-
-        ctk.CTkLabel(
-            ust,
-            text="HAMMADDE LOTU / GERİ ÇAĞIRMA İZİ",
-            font=("Arial", 14, "bold")
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(5, 5)
-        )
-
-        conn = get_connection()
-
-        hammadde_lotlari = conn.execute("""
-            SELECT
-                dk.id,
-                h.ad AS hammadde,
-                dk.tedarikci_lot_no,
-                dk.kabul_tarihi,
-                dk.tedarikci
-            FROM depo_kabul dk
-            JOIN hammaddeler h
-              ON h.id = dk.hammadde_id
-            ORDER BY dk.id DESC
-        """).fetchall()
-
-        conn.close()
 
         self.geri_cagirma_lot_map = {}
 
@@ -5908,97 +5926,227 @@ class RedboxOS(ctk.CTk):
                 f'LOT: {row["tedarikci_lot_no"]} | '
                 f'{row["kabul_tarihi"]}'
             )
-
             self.geri_cagirma_lot_map[
                 anahtar
             ] = row["id"]
+
+        sorgu_alani = ctk.CTkFrame(
+            ana_frame,
+            fg_color="transparent",
+        )
+        sorgu_alani.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 15),
+        )
+
+        ileri_panel = ctk.CTkFrame(sorgu_alani)
+        ileri_panel.pack(
+            side="left",
+            fill="both",
+            expand=True,
+            padx=5,
+        )
+
+        geri_panel = ctk.CTkFrame(sorgu_alani)
+        geri_panel.pack(
+            side="left",
+            fill="both",
+            expand=True,
+            padx=5,
+        )
+
+        ctk.CTkLabel(
+            ileri_panel,
+            text="ÜRÜN LOTUNDAN İLERİ İZLEME",
+            font=("Arial", 15, "bold"),
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(18, 4),
+        )
+
+        ctk.CTkLabel(
+            ileri_panel,
+            text=(
+                "Üretim → hammadde → paketleme → "
+                "sevkiyat → müşteri"
+            ),
+            font=("Arial", 12),
+            text_color="#A3A3A3",
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(0, 12),
+        )
+
+        lot_degerleri = list(
+            self.izlenebilirlik_lot_map.keys()
+        )
+
+        self.izlenebilirlik_lot_secim = ctk.CTkComboBox(
+            ileri_panel,
+            values=(
+                lot_degerleri
+                if lot_degerleri
+                else [""]
+            ),
+            state="readonly",
+            height=38,
+        )
+        self.izlenebilirlik_lot_secim.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 10),
+        )
+        self.izlenebilirlik_lot_secim.set("")
+
+        ileri_butonlar = ctk.CTkFrame(
+            ileri_panel,
+            fg_color="transparent",
+        )
+        ileri_butonlar.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 18),
+        )
+
+        ctk.CTkButton(
+            ileri_butonlar,
+            text="İLERİ İZLE",
+            height=40,
+            font=("Arial", 13, "bold"),
+            command=self.izlenebilirlik_getir,
+        ).pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 5),
+        )
+
+        ctk.CTkButton(
+            ileri_butonlar,
+            text="PDF RAPORU",
+            height=40,
+            width=120,
+            fg_color="#4B5563",
+            command=self.izlenebilirlik_pdf_raporu,
+        ).pack(side="left", padx=(5, 0))
+
+        ctk.CTkLabel(
+            geri_panel,
+            text="HAMMADDE LOTUNDAN GERİ ÇAĞIRMA",
+            font=("Arial", 15, "bold"),
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(18, 4),
+        )
+
+        ctk.CTkLabel(
+            geri_panel,
+            text=(
+                "Hammadde → üretim lotları → paketler → "
+                "sevkiyatlar → müşteriler"
+            ),
+            font=("Arial", 12),
+            text_color="#A3A3A3",
+        ).pack(
+            anchor="w",
+            padx=20,
+            pady=(0, 12),
+        )
 
         geri_lot_degerleri = list(
             self.geri_cagirma_lot_map.keys()
         )
 
         self.geri_cagirma_lot_secim = ctk.CTkComboBox(
-            ust,
-            width=500,
+            geri_panel,
             values=(
                 geri_lot_degerleri
                 if geri_lot_degerleri
                 else [""]
             ),
-            state="readonly"
+            state="readonly",
+            height=38,
         )
-
         self.geri_cagirma_lot_secim.pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 10)
+            fill="x",
+            padx=20,
+            pady=(0, 10),
         )
-
         self.geri_cagirma_lot_secim.set("")
 
+        geri_butonlar = ctk.CTkFrame(
+            geri_panel,
+            fg_color="transparent",
+        )
+        geri_butonlar.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 18),
+        )
+
         ctk.CTkButton(
-            ust,
-            text="HAMMADDE LOTUNDAN GERİ ÇAĞIRMA İZİNİ GETİR",
+            geri_butonlar,
+            text="GERİ ÇAĞIRMA İZİNİ GETİR",
+            height=40,
+            font=("Arial", 13, "bold"),
             command=self.geri_cagirma_izi_getir,
-            width=500,
-            height=45,
-            font=("Arial", 14, "bold")
         ).pack(
-            anchor="w",
-            padx=25,
-            pady=(5, 20)
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 5),
         )
 
         ctk.CTkButton(
-            ust,
-            text="İZLENEBİLİRLİK PDF RAPORU OLUŞTUR",
-            command=self.izlenebilirlik_pdf_raporu,
-            width=500,
-            height=45,
-            font=("Arial", 14, "bold")
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 20)
-        )
-
-        ctk.CTkButton(
-            ust,
-            text="GERİ ÇAĞIRMA PDF RAPORU OLUŞTUR",
+            geri_butonlar,
+            text="PDF RAPORU",
+            height=40,
+            width=120,
+            fg_color="#4B5563",
             command=self.geri_cagirma_pdf_raporu,
-            width=500,
-            height=45,
-            font=("Arial", 14, "bold")
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 20)
+        ).pack(side="left", padx=(5, 0))
+
+        sonuc_baslik = ctk.CTkFrame(
+            ana_frame,
+            fg_color="transparent",
         )
+        sonuc_baslik.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 6),
+        )
+
+        ctk.CTkLabel(
+            sonuc_baslik,
+            text="İZLENEBİLİRLİK SONUCU",
+            font=("Arial", 16, "bold"),
+        ).pack(side="left")
 
         self.izlenebilirlik_sonuc_frame = (
             ctk.CTkScrollableFrame(
                 ana_frame
             )
         )
-
         self.izlenebilirlik_sonuc_frame.pack(
             fill="both",
             expand=True,
-            padx=10,
-            pady=(5, 10)
+            padx=20,
+            pady=(0, 20),
         )
 
         ctk.CTkLabel(
             self.izlenebilirlik_sonuc_frame,
             text=(
-                "İzlenebilirlik zincirini görmek için "
-                "bir ürün lotu seçin."
+                "Analiz için ürün lotu veya hammadde "
+                "lotu seçin."
             ),
-            font=("Arial", 16)
-        ).pack(
-            pady=30
-        )
-
+            font=("Arial", 15),
+            text_color="#A3A3A3",
+        ).pack(pady=35)
 
     def izlenebilirlik_getir(self):
         try:
@@ -6120,156 +6268,131 @@ class RedboxOS(ctk.CTk):
                     "Üretim kaydı bulunamadı."
                 )
 
-            self.izlenebilirlik_baslik(
-                "1. ÜRÜN LOTU VE ÜRETİM"
+            self.izlenebilirlik_tablo(
+                "1. ÜRÜN LOTU VE ÜRETİM",
+                (
+                    "ÜRÜN LOTU",
+                    "ÜRETİM TARİHİ",
+                    "REÇETE",
+                    "PARTİ",
+                    "TEORİK KG",
+                    "FİRE KG",
+                    "NET KG",
+                    "PERSONEL",
+                ),
+                [(
+                    uretim["urun_lot_no"],
+                    uretim["uretim_tarihi"],
+                    uretim["recete_adi"] or "-",
+                    uretim["parti_sayisi"],
+                    f'{uretim["teorik_uretim_kg"]:.3f}',
+                    f'{uretim["uretim_firesi_kg"]:.3f}',
+                    f'{uretim["net_uretim_kg"]:.3f}',
+                    (
+                        f'{uretim["personel_1"] or "-"} / '
+                        f'{uretim["personel_2"] or "-"}'
+                    ),
+                )],
             )
 
-            uretim_metin = (
-                f'ÜRÜN LOTU: '
-                f'{uretim["urun_lot_no"]}\n'
-                f'ÜRETİM TARİHİ: '
-                f'{uretim["uretim_tarihi"]}\n'
-                f'REÇETE: '
-                f'{uretim["recete_adi"] or "-"}\n'
-                f'PARTİ SAYISI: '
-                f'{uretim["parti_sayisi"]}\n'
-                f'TEORİK ÜRETİM: '
-                f'{uretim["teorik_uretim_kg"]:.3f} kg\n'
-                f'ÜRETİM FİRESİ: '
-                f'{uretim["uretim_firesi_kg"]:.3f} kg\n'
-                f'NET ÜRETİM: '
-                f'{uretim["net_uretim_kg"]:.3f} kg\n'
-                f'PERSONEL: '
-                f'{uretim["personel_1"] or "-"} / '
-                f'{uretim["personel_2"] or "-"}'
-            )
-
-            self.izlenebilirlik_kart(
-                uretim_metin
-            )
-
-            self.izlenebilirlik_baslik(
-                "2. HAMMADDE LOT ZİNCİRİ"
-            )
-
-            if hammaddeler:
-                for row in hammaddeler:
-                    metin = (
-                        f'{row["hammadde_adi"]}\n'
-                        f'Tedarikçi: '
-                        f'{row["tedarikci"] or "-"}\n'
-                        f'Tedarikçi Lot No: '
-                        f'{row["tedarikci_lot_no"]}\n'
-                        f'ÜRT: '
-                        f'{row["uretim_tarihi"] or "-"} | '
-                        f'SKT/TETT: '
-                        f'{row["skt_tett"] or "-"}\n'
-                        f'Kullanılan: '
-                        f'{row["kullanilan_miktar_kg"]:.3f} kg'
+            self.izlenebilirlik_tablo(
+                "2. HAMMADDE LOT ZİNCİRİ",
+                (
+                    "HAMMADDE",
+                    "TEDARİKÇİ",
+                    "LOT NO",
+                    "ÜRT",
+                    "SKT / TETT",
+                    "KULLANILAN KG",
+                ),
+                [
+                    (
+                        row["hammadde_adi"],
+                        row["tedarikci"] or "-",
+                        row["tedarikci_lot_no"],
+                        row["uretim_tarihi"] or "-",
+                        row["skt_tett"] or "-",
+                        f'{row["kullanilan_miktar_kg"]:.3f}',
                     )
+                    for row in hammaddeler
+                ],
+            )
 
-                    self.izlenebilirlik_kart(
-                        metin
-                    )
-            else:
-                self.izlenebilirlik_kart(
-                    "HAMMADDE LOT TÜKETİM KAYDI YOK"
+            paketleme_satirlari = []
+
+            for row in paketlemeler:
+                ambalaj = (
+                    "500 g"
+                    if row["ambalaj_gram"] == 500
+                    else "2.5 kg"
+                    if row["ambalaj_gram"] == 2500
+                    else f'{row["ambalaj_gram"]} g'
                 )
 
-            self.izlenebilirlik_baslik(
-                "3. PAKETLEME"
-            )
-
-            if paketlemeler:
-                for row in paketlemeler:
-                    ambalaj = (
-                        "500 g"
-                        if row["ambalaj_gram"] == 500
-                        else "2.5 kg"
-                        if row["ambalaj_gram"] == 2500
-                        else (
-                            f'{row["ambalaj_gram"]} g'
-                        )
-                    )
-
-                    koli_ici = (
-                        row["koli_ici_adet"]
-                        or 0
-                    )
-
-                    if koli_ici > 0:
-                        tam_koli = (
-                            row["paket_adedi"]
-                            // koli_ici
-                        )
-
-                        acik_paket = (
-                            row["paket_adedi"]
-                            % koli_ici
-                        )
-                    else:
-                        tam_koli = 0
-                        acik_paket = (
-                            row["paket_adedi"]
-                        )
-
-                    metin = (
-                        f'PAKETLEME TARİHİ: '
-                        f'{row["paketleme_tarihi"]}\n'
-                        f'AMBALAJ: {ambalaj}\n'
-                        f'PAKET ADEDİ: '
-                        f'{row["paket_adedi"]}\n'
-                        f'TAM KOLİ: {tam_koli}\n'
-                        f'AÇIK PAKET: {acik_paket}\n'
-                        f'PAKETLENEN: '
-                        f'{row["paketlenen_kg"]:.3f} kg\n'
-                        f'PAKETLEME FİRESİ: '
-                        f'{row["paketleme_firesi_kg"]:.3f} kg'
-                    )
-
-                    self.izlenebilirlik_kart(
-                        metin
-                    )
-            else:
-                self.izlenebilirlik_kart(
-                    "PAKETLEME KAYDI YOK"
+                koli_ici = row["koli_ici_adet"] or 0
+                tam_koli = (
+                    row["paket_adedi"] // koli_ici
+                    if koli_ici > 0
+                    else 0
+                )
+                acik_paket = (
+                    row["paket_adedi"] % koli_ici
+                    if koli_ici > 0
+                    else row["paket_adedi"]
                 )
 
-            self.izlenebilirlik_baslik(
-                "4. SEVKİYAT VE MÜŞTERİ ZİNCİRİ"
+                paketleme_satirlari.append((
+                    row["paketleme_tarihi"],
+                    ambalaj,
+                    row["paket_adedi"],
+                    tam_koli,
+                    acik_paket,
+                    f'{row["paketlenen_kg"]:.3f}',
+                    f'{row["paketleme_firesi_kg"]:.3f}',
+                ))
+
+            self.izlenebilirlik_tablo(
+                "3. PAKETLEME",
+                (
+                    "TARİH",
+                    "AMBALAJ",
+                    "PAKET",
+                    "TAM KOLİ",
+                    "AÇIK PAKET",
+                    "PAKETLENEN KG",
+                    "FİRE KG",
+                ),
+                paketleme_satirlari,
             )
 
-            if sevkiyatlar:
-                for row in sevkiyatlar:
-                    soguk = (
-                        "EVET"
-                        if row["soguk_zincir"]
-                        else "HAYIR"
+            self.izlenebilirlik_tablo(
+                "4. SEVKİYAT VE MÜŞTERİ ZİNCİRİ",
+                (
+                    "TARİH",
+                    "MÜŞTERİ",
+                    "PAKET",
+                    "SEVK KG",
+                    "ARAÇ PLAKA",
+                    "BELGE NO",
+                    "SOĞUK ZİNCİR",
+                ),
+                [
+                    (
+                        row["sevkiyat_tarihi"],
+                        row["musteri"],
+                        row["toplam_paket"],
+                        f'{row["toplam_kg"]:.3f}',
+                        row["arac_plaka"] or "-",
+                        row["belge_no"] or "-",
+                        (
+                            "EVET"
+                            if row["soguk_zincir"]
+                            else "HAYIR"
+                        ),
                     )
-
-                    metin = (
-                        f'SEVKİYAT TARİHİ: '
-                        f'{row["sevkiyat_tarihi"]}\n'
-                        f'MÜŞTERİ: '
-                        f'{row["musteri"]}\n'
-                        f'PAKET: '
-                        f'{row["toplam_paket"]}\n'
-                        f'SEVK KG: '
-                        f'{row["toplam_kg"]:.3f} kg\n'
-                        f'ARAÇ PLAKA: '
-                        f'{row["arac_plaka"] or "-"}\n'
-                        f'BELGE NO: '
-                        f'{row["belge_no"] or "-"}\n'
-                        f'SOĞUK ZİNCİR: {soguk}'
-                    )
-
-                    self.izlenebilirlik_kart(
-                        metin
-                    )
-            else:
-                self.izlenebilirlik_kart(
-                    "BU ÜRÜN LOTUNA BAĞLI SEVKİYAT YOK"
-                )
+                    for row in sevkiyatlar
+                ],
+            )
 
         except ValueError as hata:
             messagebox.showerror(
@@ -6413,167 +6536,142 @@ class RedboxOS(ctk.CTk):
             finally:
                 conn.close()
 
-            self.izlenebilirlik_baslik(
-                "GERİ ÇAĞIRMA / TERS İZLENEBİLİRLİK"
-            )
-
             if not hammadde_lotu:
                 self.izlenebilirlik_kart(
                     "HAMMADDE LOT KAYDI BULUNAMADI"
                 )
                 return
 
-            lot_metin = (
-                f'HAMMADDE: '
-                f'{hammadde_lotu["hammadde"]}\n'
-                f'TEDARİKÇİ: '
-                f'{hammadde_lotu["tedarikci"]}\n'
-                f'TEDARİKÇİ LOT NO: '
-                f'{hammadde_lotu["tedarikci_lot_no"]}\n'
-                f'KABUL TARİHİ: '
-                f'{hammadde_lotu["kabul_tarihi"]}\n'
-                f'ÜRETİM TARİHİ: '
-                f'{hammadde_lotu["uretim_tarihi"] or "-"}\n'
-                f'SKT / TETT: '
-                f'{hammadde_lotu["skt_tett"] or "-"}\n'
-                f'KABUL MİKTARI: '
-                f'{hammadde_lotu["miktar_kg"]:.3f} kg\n'
-                f'KABUL DURUMU: '
-                f'{hammadde_lotu["kabul_durumu"]}'
+            self.izlenebilirlik_tablo(
+                "GERİ ÇAĞIRMA / TERS İZLENEBİLİRLİK",
+                (
+                    "HAMMADDE",
+                    "TEDARİKÇİ",
+                    "LOT NO",
+                    "KABUL TARİHİ",
+                    "ÜRT",
+                    "SKT / TETT",
+                    "MİKTAR KG",
+                    "DURUM",
+                ),
+                [(
+                    hammadde_lotu["hammadde"],
+                    hammadde_lotu["tedarikci"] or "-",
+                    hammadde_lotu["tedarikci_lot_no"],
+                    hammadde_lotu["kabul_tarihi"],
+                    hammadde_lotu["uretim_tarihi"] or "-",
+                    hammadde_lotu["skt_tett"] or "-",
+                    f'{hammadde_lotu["miktar_kg"]:.3f}',
+                    hammadde_lotu["kabul_durumu"],
+                )],
             )
 
-            self.izlenebilirlik_kart(
-                lot_metin
-            )
-
-            self.izlenebilirlik_baslik(
-                "1. ETKİLENEN ÜRETİM LOTLARI"
-            )
-
-            if uretimler:
-                for row in uretimler:
-                    metin = (
-                        f'ÜRÜN LOTU: '
-                        f'{row["urun_lot_no"]}\n'
-                        f'ÜRETİM TARİHİ: '
-                        f'{row["uretim_tarihi"]}\n'
-                        f'PARTİ SAYISI: '
-                        f'{row["parti_sayisi"]}\n'
-                        f'NET ÜRETİM: '
-                        f'{row["net_uretim_kg"]:.3f} kg\n'
-                        f'BU HAMMADDE LOTUNDAN KULLANILAN: '
-                        f'{row["kullanilan_miktar_kg"]:.3f} kg'
+            self.izlenebilirlik_tablo(
+                "1. ETKİLENEN ÜRETİM LOTLARI",
+                (
+                    "ÜRÜN LOTU",
+                    "ÜRETİM TARİHİ",
+                    "PARTİ",
+                    "NET ÜRETİM KG",
+                    "KULLANILAN KG",
+                ),
+                [
+                    (
+                        row["urun_lot_no"],
+                        row["uretim_tarihi"],
+                        row["parti_sayisi"],
+                        f'{row["net_uretim_kg"]:.3f}',
+                        f'{row["kullanilan_miktar_kg"]:.3f}',
                     )
+                    for row in uretimler
+                ],
+            )
 
-                    self.izlenebilirlik_kart(
-                        metin
-                    )
-            else:
-                self.izlenebilirlik_kart(
-                    "BU HAMMADDE LOTU HENÜZ "
-                    "HERHANGİ BİR ÜRETİMDE KULLANILMAMIŞ"
+            paketleme_satirlari = []
+
+            for row in paketlemeler:
+                ambalaj = (
+                    "500 g"
+                    if row["ambalaj_gram"] == 500
+                    else "2.5 kg"
+                    if row["ambalaj_gram"] == 2500
+                    else f'{row["ambalaj_gram"]} g'
                 )
 
-            self.izlenebilirlik_baslik(
-                "2. ETKİLENEN PAKETLEMELER"
-            )
-
-            if paketlemeler:
-                for row in paketlemeler:
-                    ambalaj = (
-                        "500 g"
-                        if row["ambalaj_gram"] == 500
-                        else "2.5 kg"
-                        if row["ambalaj_gram"] == 2500
-                        else f'{row["ambalaj_gram"]} g'
-                    )
-
-                    koli_ici = (
-                        row["koli_ici_adet"] or 0
-                    )
-
-                    if koli_ici > 0:
-                        tam_koli = (
-                            row["paket_adedi"]
-                            // koli_ici
-                        )
-
-                        acik_paket = (
-                            row["paket_adedi"]
-                            % koli_ici
-                        )
-                    else:
-                        tam_koli = 0
-                        acik_paket = row["paket_adedi"]
-
-                    metin = (
-                        f'ÜRÜN LOTU: '
-                        f'{row["urun_lot_no"]}\n'
-                        f'PAKETLEME TARİHİ: '
-                        f'{row["paketleme_tarihi"]}\n'
-                        f'AMBALAJ: {ambalaj}\n'
-                        f'PAKET: '
-                        f'{row["paket_adedi"]}\n'
-                        f'TAM KOLİ: {tam_koli}\n'
-                        f'AÇIK PAKET: {acik_paket}\n'
-                        f'PAKETLENEN: '
-                        f'{row["paketlenen_kg"]:.3f} kg'
-                    )
-
-                    self.izlenebilirlik_kart(
-                        metin
-                    )
-            else:
-                self.izlenebilirlik_kart(
-                    "ETKİLENEN PAKETLEME KAYDI YOK"
+                koli_ici = row["koli_ici_adet"] or 0
+                tam_koli = (
+                    row["paket_adedi"] // koli_ici
+                    if koli_ici > 0
+                    else 0
+                )
+                acik_paket = (
+                    row["paket_adedi"] % koli_ici
+                    if koli_ici > 0
+                    else row["paket_adedi"]
                 )
 
-            self.izlenebilirlik_baslik(
-                "3. ETKİLENEN SEVKİYAT VE MÜŞTERİLER"
+                paketleme_satirlari.append((
+                    row["urun_lot_no"],
+                    row["paketleme_tarihi"],
+                    ambalaj,
+                    row["paket_adedi"],
+                    tam_koli,
+                    acik_paket,
+                    f'{row["paketlenen_kg"]:.3f}',
+                ))
+
+            self.izlenebilirlik_tablo(
+                "2. ETKİLENEN PAKETLEMELER",
+                (
+                    "ÜRÜN LOTU",
+                    "TARİH",
+                    "AMBALAJ",
+                    "PAKET",
+                    "TAM KOLİ",
+                    "AÇIK PAKET",
+                    "PAKETLENEN KG",
+                ),
+                paketleme_satirlari,
             )
 
-            if sevkiyatlar:
-                for row in sevkiyatlar:
-                    soguk = (
-                        "EVET"
-                        if row["soguk_zincir"]
-                        else "HAYIR"
+            self.izlenebilirlik_tablo(
+                "3. ETKİLENEN SEVKİYAT VE MÜŞTERİLER",
+                (
+                    "ÜRÜN LOTU",
+                    "TARİH",
+                    "MÜŞTERİ",
+                    "AMBALAJ",
+                    "PAKET",
+                    "SEVK KG",
+                    "ARAÇ PLAKA",
+                    "BELGE NO",
+                    "SOĞUK ZİNCİR",
+                ),
+                [
+                    (
+                        row["urun_lot_no"],
+                        row["sevkiyat_tarihi"],
+                        row["musteri"],
+                        (
+                            "500 g"
+                            if row["ambalaj_gram"] == 500
+                            else "2.5 kg"
+                            if row["ambalaj_gram"] == 2500
+                            else f'{row["ambalaj_gram"]} g'
+                        ),
+                        row["paket_adedi"],
+                        f'{row["sevk_kg"]:.3f}',
+                        row["arac_plaka"] or "-",
+                        row["belge_no"] or "-",
+                        (
+                            "EVET"
+                            if row["soguk_zincir"]
+                            else "HAYIR"
+                        ),
                     )
-
-                    ambalaj = (
-                        "500 g"
-                        if row["ambalaj_gram"] == 500
-                        else "2.5 kg"
-                        if row["ambalaj_gram"] == 2500
-                        else f'{row["ambalaj_gram"]} g'
-                    )
-
-                    metin = (
-                        f'ÜRÜN LOTU: '
-                        f'{row["urun_lot_no"]}\n'
-                        f'SEVKİYAT TARİHİ: '
-                        f'{row["sevkiyat_tarihi"]}\n'
-                        f'MÜŞTERİ: '
-                        f'{row["musteri"]}\n'
-                        f'AMBALAJ: {ambalaj}\n'
-                        f'SEVK PAKET: '
-                        f'{row["paket_adedi"]}\n'
-                        f'SEVK KG: '
-                        f'{row["sevk_kg"]:.3f} kg\n'
-                        f'ARAÇ PLAKA: '
-                        f'{row["arac_plaka"] or "-"}\n'
-                        f'BELGE NO: '
-                        f'{row["belge_no"] or "-"}\n'
-                        f'SOĞUK ZİNCİR: {soguk}'
-                    )
-
-                    self.izlenebilirlik_kart(
-                        metin
-                    )
-            else:
-                self.izlenebilirlik_kart(
-                    "ETKİLENEN SEVKİYAT / MÜŞTERİ YOK"
-                )
+                    for row in sevkiyatlar
+                ],
+            )
 
         except ValueError as hata:
             messagebox.showerror(
@@ -6896,6 +6994,79 @@ class RedboxOS(ctk.CTk):
             if conn is not None:
                 conn.close()
 
+
+    def izlenebilirlik_tablo(
+        self,
+        baslik,
+        sutunlar,
+        satirlar,
+    ):
+        self.izlenebilirlik_baslik(baslik)
+
+        if not satirlar:
+            self.izlenebilirlik_kart(
+                "Bu bölüme ait kayıt bulunamadı."
+            )
+            return
+
+        tablo = ctk.CTkFrame(
+            self.izlenebilirlik_sonuc_frame,
+            fg_color="transparent",
+        )
+        tablo.pack(
+            fill="x",
+            padx=12,
+            pady=(0, 14),
+        )
+
+        for index in range(len(sutunlar)):
+            tablo.grid_columnconfigure(
+                index,
+                weight=1,
+                uniform="traceability",
+            )
+
+        for column, baslik_metni in enumerate(sutunlar):
+            ctk.CTkLabel(
+                tablo,
+                text=baslik_metni,
+                height=38,
+                fg_color="#1F2937",
+                font=("Arial", 11, "bold"),
+                anchor="center",
+                wraplength=150,
+            ).grid(
+                row=0,
+                column=column,
+                sticky="nsew",
+                padx=1,
+                pady=1,
+            )
+
+        for row_index, satir in enumerate(satirlar, 1):
+            renk = (
+                "#292929"
+                if row_index % 2
+                else "#303030"
+            )
+
+            for column, deger in enumerate(satir):
+                ctk.CTkLabel(
+                    tablo,
+                    text=str(deger),
+                    height=38,
+                    fg_color=renk,
+                    font=("Arial", 11),
+                    anchor="center",
+                    justify="center",
+                    wraplength=150,
+                ).grid(
+                    row=row_index,
+                    column=column,
+                    sticky="nsew",
+                    padx=1,
+                    pady=1,
+                )
 
     def izlenebilirlik_baslik(self, metin):
         ctk.CTkLabel(
