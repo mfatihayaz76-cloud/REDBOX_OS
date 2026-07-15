@@ -462,221 +462,423 @@ class RedboxOS(ctk.CTk):
     def stok(self):
         self.clear_content()
 
-        ctk.CTkLabel(
-            self.content,
-            text="STOK",
-            font=("Arial", 30, "bold")
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
+        mamul_rows = [
+            row
+            for row in mamul_stok_ozeti()
+            if int(row["kalan_paket_adedi"]) > 0
+        ]
+        hammadde_rows = hammadde_stok_ozeti()
+        lot_rows = hammadde_lot_stoklari(
+            sadece_pozitif=True
         )
 
-        ctk.CTkLabel(
-            self.content,
-            text="Canlı mamul ve hammadde depo stok durumu",
-            font=("Arial", 15)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
+        paket_stoklari = {
+            500: {
+                "paket": 0,
+                "kg": 0.0,
+                "koli_ici": 32,
+            },
+            2500: {
+                "paket": 0,
+                "kg": 0.0,
+                "koli_ici": 10,
+            },
+        }
+
+        for row in mamul_rows:
+            ambalaj_gram = int(
+                float(row["ambalaj_gram"])
+            )
+
+            if ambalaj_gram not in paket_stoklari:
+                continue
+
+            paket_stoklari[ambalaj_gram]["paket"] += int(
+                row["kalan_paket_adedi"]
+            )
+            paket_stoklari[ambalaj_gram]["kg"] += float(
+                row["kalan_kg"]
+            )
+
+        stok_500 = paket_stoklari[500]
+        stok_2500 = paket_stoklari[2500]
+
+        stok_500["koli"] = (
+            stok_500["paket"]
+            // stok_500["koli_ici"]
+        )
+        stok_2500["koli"] = (
+            stok_2500["paket"]
+            // stok_2500["koli_ici"]
         )
 
-        stock_actions = ctk.CTkFrame(
+        header = ctk.CTkFrame(
             self.content,
             fg_color="transparent"
         )
-        stock_actions.pack(
+        header.pack(
             fill="x",
             padx=25,
-            pady=(0, 10)
+            pady=(20, 12)
+        )
+
+        title_area = ctk.CTkFrame(
+            header,
+            fg_color="transparent"
+        )
+        title_area.pack(
+            side="left",
+            fill="x",
+            expand=True
+        )
+
+        ctk.CTkLabel(
+            title_area,
+            text="STOK YÖNETİMİ",
+            font=("Arial", 30, "bold"),
+            anchor="w"
+        ).pack(
+            anchor="w"
+        )
+
+        ctk.CTkLabel(
+            title_area,
+            text=(
+                "Canlı mamul, hammadde ve lot bazlı "
+                "depo görünümü"
+            ),
+            font=("Arial", 14),
+            text_color=("gray35", "gray70"),
+            anchor="w"
+        ).pack(
+            anchor="w",
+            pady=(3, 0)
         )
 
         ctk.CTkButton(
-            stock_actions,
+            header,
             text="GENEL STOK PDF",
             command=self.genel_stok_pdf_raporu,
             width=170,
-            height=40,
+            height=42,
             font=("Arial", 13, "bold")
         ).pack(
-            side="right"
+            side="right",
+            padx=(12, 0)
         )
 
-        scroll = ctk.CTkScrollableFrame(self.content)
-        scroll.pack(
+        kpi_area = ctk.CTkFrame(
+            self.content,
+            fg_color="transparent"
+        )
+        kpi_area.pack(
+            fill="x",
+            padx=25,
+            pady=(0, 14)
+        )
+
+        kpi_values = (
+            (
+                "PAKETLENMİŞ STOK — 500 G",
+                (
+                    f'{stok_500["paket"]} paket  •  '
+                    f'{stok_500["koli"]} koli  •  '
+                    f'{stok_500["kg"]:.3f} kg'
+                ),
+                "#1f6aa5",
+            ),
+            (
+                "PAKETLENMİŞ STOK — 2,5 KG",
+                (
+                    f'{stok_2500["paket"]} paket  •  '
+                    f'{stok_2500["koli"]} koli  •  '
+                    f'{stok_2500["kg"]:.3f} kg'
+                ),
+                "#287a5b",
+            ),
+        )
+
+        for column_index, (
+            label,
+            value,
+            color
+        ) in enumerate(kpi_values):
+            kpi_area.grid_columnconfigure(
+                column_index,
+                weight=1
+            )
+
+            card = ctk.CTkFrame(
+                kpi_area,
+                corner_radius=10,
+                border_width=1,
+                border_color=color
+            )
+            card.grid(
+                row=0,
+                column=column_index,
+                sticky="nsew",
+                padx=(
+                    0 if column_index == 0 else 6,
+                    0
+                    if column_index == len(kpi_values) - 1
+                    else 6,
+                )
+            )
+
+            ctk.CTkLabel(
+                card,
+                text=label,
+                font=("Arial", 11, "bold"),
+                text_color=("gray35", "gray70"),
+                anchor="w"
+            ).pack(
+                fill="x",
+                padx=15,
+                pady=(12, 3)
+            )
+
+            ctk.CTkLabel(
+                card,
+                text=value,
+                font=("Arial", 21, "bold"),
+                text_color=color,
+                anchor="w"
+            ).pack(
+                fill="x",
+                padx=15,
+                pady=(0, 13)
+            )
+
+        toolbar = ctk.CTkFrame(
+            self.content,
+            corner_radius=10
+        )
+        toolbar.pack(
+            fill="x",
+            padx=25,
+            pady=(0, 12)
+        )
+
+        search_entry = ctk.CTkEntry(
+            toolbar,
+            width=310,
+            height=38,
+            placeholder_text=(
+                "Stoklarda ara: ürün, lot, hammadde..."
+            )
+        )
+        search_entry.pack(
+            side="left",
+            padx=12,
+            pady=12
+        )
+
+        view_selector = ctk.CTkSegmentedButton(
+            toolbar,
+            values=(
+                "TÜMÜ",
+                "MAMUL",
+                "HAMMADDE",
+                "LOT BAZLI",
+            ),
+            height=38,
+            font=("Arial", 12, "bold")
+        )
+        view_selector.pack(
+            side="right",
+            padx=12,
+            pady=12
+        )
+        view_selector.set("TÜMÜ")
+
+        body = ctk.CTkScrollableFrame(
+            self.content,
+            fg_color="transparent"
+        )
+        body.pack(
             fill="both",
             expand=True,
             padx=20,
             pady=(0, 20)
         )
 
-        def section_title(text):
-            ctk.CTkLabel(
-                scroll,
-                text=text,
-                font=("Arial", 21, "bold")
-            ).pack(
-                anchor="w",
-                padx=10,
-                pady=(22, 10)
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Stock.Treeview",
+            background="#252525",
+            fieldbackground="#252525",
+            foreground="#e5e7eb",
+            rowheight=36,
+            borderwidth=0,
+            font=("Arial", 11)
+        )
+        style.configure(
+            "Stock.Treeview.Heading",
+            background="#343434",
+            foreground="#f3f4f6",
+            relief="flat",
+            font=("Arial", 11, "bold")
+        )
+        style.map(
+            "Stock.Treeview",
+            background=[("selected", "#1f6aa5")],
+            foreground=[("selected", "#ffffff")]
+        )
+
+        sections = {}
+
+        def create_section(
+            key,
+            title,
+            subtitle,
+            headers,
+            widths
+        ):
+            section = ctk.CTkFrame(
+                body,
+                corner_radius=10
             )
 
-        def summary_card(text):
-            frame = ctk.CTkFrame(
-                scroll,
-                corner_radius=8
+            heading = ctk.CTkFrame(
+                section,
+                fg_color="transparent"
             )
-            frame.pack(
+            heading.pack(
                 fill="x",
-                padx=10,
-                pady=(0, 10)
+                padx=14,
+                pady=(12, 8)
             )
 
             ctk.CTkLabel(
-                frame,
-                text=text,
-                font=("Arial", 16, "bold"),
+                heading,
+                text=title,
+                font=("Arial", 18, "bold"),
+                anchor="w"
+            ).pack(
+                side="left"
+            )
+
+            count_label = ctk.CTkLabel(
+                heading,
+                text="0 kayıt",
+                font=("Arial", 11, "bold"),
+                text_color=("gray35", "gray70")
+            )
+            count_label.pack(
+                side="right"
+            )
+
+            ctk.CTkLabel(
+                section,
+                text=subtitle,
+                font=("Arial", 12),
+                text_color=("gray35", "gray70"),
                 anchor="w"
             ).pack(
                 fill="x",
-                padx=18,
-                pady=14
+                padx=14,
+                pady=(0, 8)
             )
 
-        def data_table(headers, rows, weights):
-            table = ctk.CTkFrame(
-                scroll,
-                corner_radius=8
+            table_frame = ctk.CTkFrame(
+                section,
+                fg_color="transparent"
             )
-            table.pack(
-                fill="x",
+            table_frame.pack(
+                fill="both",
+                expand=True,
                 padx=10,
                 pady=(0, 10)
             )
-
-            style = ttk.Style()
-            style.theme_use("clam")
-            style.configure(
-                "Redbox.Treeview",
-                background="#2b2b2b",
-                fieldbackground="#2b2b2b",
-                foreground="#e5e7eb",
-                rowheight=38,
-                borderwidth=0,
-                font=("Arial", 12)
-            )
-            style.configure(
-                "Redbox.Treeview.Heading",
-                background="#343434",
-                foreground="#e5e7eb",
-                relief="flat",
-                font=("Arial", 12, "bold")
-            )
-            style.map(
-                "Redbox.Treeview",
-                background=[("selected", "#1f6aa5")],
-                foreground=[("selected", "#ffffff")]
-            )
+            table_frame.grid_rowconfigure(0, weight=1)
+            table_frame.grid_columnconfigure(0, weight=1)
 
             columns = tuple(
-                f"column_{index}"
+                f"{key}_{index}"
                 for index in range(len(headers))
             )
 
-            tree = ttk.Treeview(
-                table,
+            tree_widget = ttk.Treeview(
+                table_frame,
                 columns=columns,
                 show="headings",
-                style="Redbox.Treeview",
-                height=max(1, len(rows)),
+                style="Stock.Treeview",
+                height=6,
                 selectmode="browse"
+            )
+
+            scrollbar = ttk.Scrollbar(
+                table_frame,
+                orient="vertical",
+                command=tree_widget.yview
+            )
+            tree_widget.configure(
+                yscrollcommand=scrollbar.set
+            )
+
+            tree_widget.grid(
+                row=0,
+                column=0,
+                sticky="nsew"
+            )
+            scrollbar.grid(
+                row=0,
+                column=1,
+                sticky="ns"
             )
 
             for index, (
                 column,
-                header,
-                weight
+                header_text,
+                width
             ) in enumerate(
-                zip(columns, headers, weights)
+                zip(columns, headers, widths)
             ):
-                anchor = "e" if index > 0 else "w"
-
-                tree.heading(
+                anchor = "w" if index == 0 else "e"
+                tree_widget.heading(
                     column,
-                    text=header,
+                    text=header_text,
                     anchor=anchor
                 )
-                tree.column(
+                tree_widget.column(
                     column,
+                    width=width,
+                    minwidth=90,
                     anchor=anchor,
-                    width=weight * 55,
-                    minwidth=80,
                     stretch=True
                 )
 
-            tree.tag_configure(
+            tree_widget.tag_configure(
                 "even",
-                background="#292929"
+                background="#252525"
             )
-            tree.tag_configure(
+            tree_widget.tag_configure(
                 "odd",
-                background="#303030"
+                background="#2d2d2d"
+            )
+            tree_widget.tag_configure(
+                "warning",
+                background="#5c431f",
+                foreground="#ffffff"
+            )
+            tree_widget.tag_configure(
+                "critical",
+                background="#652d2d",
+                foreground="#ffffff"
             )
 
-            if rows:
-                for row_index, values in enumerate(rows):
-                    tree.insert(
-                        "",
-                        "end",
-                        values=values,
-                        tags=(
-                            "even"
-                            if row_index % 2 == 0
-                            else "odd",
-                        )
-                    )
-            else:
-                empty_values = [
-                    "Gösterilecek aktif stok kaydı yok."
-                ] + [""] * (len(headers) - 1)
+            sections[key] = {
+                "frame": section,
+                "tree": tree_widget,
+                "count": count_label,
+            }
 
-                tree.insert(
-                    "",
-                    "end",
-                    values=empty_values,
-                    tags=("even",)
-                )
-
-            tree.pack(
-                fill="x",
-                expand=True,
-                padx=8,
-                pady=8
-            )
-
-        mamul_rows = [
-            row
-            for row in mamul_stok_ozeti()
-            if int(row["kalan_paket_adedi"]) > 0
-        ]
-
-        mamul_toplam_kg = sum(
-            float(row["kalan_kg"])
-            for row in mamul_rows
-        )
-        mamul_toplam_paket = sum(
-            int(row["kalan_paket_adedi"])
-            for row in mamul_rows
-        )
-
-        section_title("CANLI MAMUL STOK")
-        summary_card(
-            f"TOPLAM MAMUL STOK: {mamul_toplam_kg:.3f} KG"
-            f"   |   TOPLAM PAKET: {mamul_toplam_paket}"
-        )
-
-        data_table(
+        create_section(
+            "mamul",
+            "CANLI MAMUL STOK",
+            "Sevkiyata hazır ürün lotları ve ambalaj durumu",
             (
                 "ÜRÜN LOTU",
                 "AMBALAJ",
@@ -685,75 +887,28 @@ class RedboxOS(ctk.CTk):
                 "AÇIK PAKET",
                 "KALAN KG",
             ),
-            [
-                (
-                    row["urun_lot_no"],
-                    f'{row["ambalaj_gram"]} G',
-                    row["kalan_paket_adedi"],
-                    row["tam_koli"],
-                    row["acik_paket"],
-                    f'{float(row["kalan_kg"]):.3f}',
-                )
-                for row in mamul_rows
-            ],
-            (3, 2, 2, 2, 2, 2)
+            (190, 120, 110, 110, 120, 120)
         )
 
-        hammadde_rows = hammadde_stok_ozeti()
-        hammadde_toplam = hammadde_toplam_stok_kg()
-        pozitif_hammadde = sum(
-            1
-            for row in hammadde_rows
-            if float(row["kalan_kg"]) > 0.000001
-        )
-
-        section_title("CANLI HAMMADDE STOK")
-        summary_card(
-            f"TOPLAM HAMMADDE STOK: {hammadde_toplam:.3f} KG"
-            f"   |   POZİTİF STOK KALEMİ: {pozitif_hammadde}"
-        )
-
-        hammadde_table_rows = []
-
-        for row in hammadde_rows:
-            kalan = float(row["kalan_kg"])
-
-            if kalan > 0.000001:
-                durum = "STOK VAR"
-            elif kalan < -0.000001:
-                durum = "NEGATİF STOK"
-            else:
-                durum = "STOK YOK"
-
-            hammadde_table_rows.append(
-                (
-                    row["hammadde"],
-                    f'{float(row["kabul_kg"]):.3f}',
-                    f'{float(row["tuketim_kg"]):.3f}',
-                    f"{kalan:.3f}",
-                    durum,
-                )
-            )
-
-        data_table(
+        create_section(
+            "hammadde",
+            "CANLI HAMMADDE STOK",
+            "Kabul ve üretim tüketimine göre güncel durum",
             (
                 "HAMMADDE",
                 "KABUL KG",
                 "TÜKETİM KG",
+                "DÜZELTME KG",
                 "KALAN KG",
                 "DURUM",
             ),
-            hammadde_table_rows,
-            (4, 2, 2, 2, 2)
+            (220, 115, 115, 125, 115, 140)
         )
 
-        lot_rows = hammadde_lot_stoklari(
-            sadece_pozitif=True
-        )
-
-        section_title("HAMMADDE LOT BAZLI STOK")
-
-        data_table(
+        create_section(
+            "lot",
+            "HAMMADDE LOT BAZLI STOK",
+            "Pozitif bakiyesi bulunan tedarikçi lotları",
             (
                 "HAMMADDE",
                 "TEDARİKÇİ LOTU",
@@ -761,18 +916,175 @@ class RedboxOS(ctk.CTk):
                 "TÜKETİM KG",
                 "KALAN KG",
             ),
-            [
-                (
+            (220, 210, 130, 130, 130)
+        )
+
+        def turkce_normalize(value):
+            return str(value).translate(
+                str.maketrans({
+                    "I": "ı",
+                    "İ": "i",
+                    "Ğ": "ğ",
+                    "Ü": "ü",
+                    "Ş": "ş",
+                    "Ö": "ö",
+                    "Ç": "ç",
+                })
+            ).casefold()
+
+        def matches(values, query):
+            if not query:
+                return True
+
+            searchable = " ".join(
+                str(value)
+                for value in values
+            )
+            return query in turkce_normalize(searchable)
+
+        def fill_tree(key, rows):
+            tree_widget = sections[key]["tree"]
+
+            for item in tree_widget.get_children():
+                tree_widget.delete(item)
+
+            for row_index, row_data in enumerate(rows):
+                values = row_data["values"]
+                tag = row_data.get(
+                    "tag",
+                    "even"
+                    if row_index % 2 == 0
+                    else "odd"
+                )
+
+                tree_widget.insert(
+                    "",
+                    "end",
+                    values=values,
+                    tags=(tag,)
+                )
+
+            sections[key]["count"].configure(
+                text=f"{len(rows)} kayıt"
+            )
+
+            tree_widget.configure(
+                height=max(2, min(len(rows), 7))
+            )
+
+            if not rows:
+                tree_widget.insert(
+                    "",
+                    "end",
+                    values=(
+                        "Kayıt bulunamadı.",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                    )[:len(tree_widget["columns"])],
+                    tags=("even",)
+                )
+
+        def refresh_stock_view(event=None):
+            query = turkce_normalize(
+                search_entry.get().strip()
+            )
+
+            mamul_display = []
+            for row in mamul_rows:
+                values = (
+                    row["urun_lot_no"],
+                    f'{row["ambalaj_gram"]} G',
+                    row["kalan_paket_adedi"],
+                    row["tam_koli"],
+                    row["acik_paket"],
+                    f'{float(row["kalan_kg"]):.3f}',
+                )
+                if matches(values, query):
+                    mamul_display.append({
+                        "values": values,
+                    })
+
+            hammadde_display = []
+            for row in hammadde_rows:
+                kalan = float(row["kalan_kg"])
+
+                if kalan > 0.000001:
+                    durum = "STOK VAR"
+                    tag = None
+                elif kalan < -0.000001:
+                    durum = "NEGATİF STOK"
+                    tag = "critical"
+                else:
+                    durum = "STOK YOK"
+                    tag = "warning"
+
+                values = (
+                    row["hammadde"],
+                    f'{float(row["kabul_kg"]):.3f}',
+                    f'{float(row["tuketim_kg"]):.3f}',
+                    f'{float(row["hareket_net_kg"]):+.3f}',
+                    f"{kalan:.3f}",
+                    durum,
+                )
+
+                if matches(values, query):
+                    item = {"values": values}
+                    if tag:
+                        item["tag"] = tag
+                    hammadde_display.append(item)
+
+            lot_display = []
+            for row in lot_rows:
+                values = (
                     row["hammadde"],
                     row["tedarikci_lot_no"],
                     f'{float(row["kabul_kg"]):.3f}',
                     f'{float(row["tuketim_kg"]):.3f}',
                     f'{float(row["kalan_kg"]):.3f}',
                 )
-                for row in lot_rows
-            ],
-            (4, 3, 2, 2, 2)
+                if matches(values, query):
+                    lot_display.append({
+                        "values": values,
+                    })
+
+            fill_tree("mamul", mamul_display)
+            fill_tree("hammadde", hammadde_display)
+            fill_tree("lot", lot_display)
+
+            selected_view = view_selector.get()
+            visible_keys = {
+                "TÜMÜ": ("mamul", "hammadde", "lot"),
+                "MAMUL": ("mamul",),
+                "HAMMADDE": ("hammadde",),
+                "LOT BAZLI": ("lot",),
+            }.get(
+                selected_view,
+                ("mamul", "hammadde", "lot")
+            )
+
+            for section_data in sections.values():
+                section_data["frame"].pack_forget()
+
+            for key in visible_keys:
+                sections[key]["frame"].pack(
+                    fill="x",
+                    expand=True,
+                    padx=5,
+                    pady=(0, 12)
+                )
+
+        search_entry.bind(
+            "<KeyRelease>",
+            refresh_stock_view
         )
+        view_selector.configure(
+            command=refresh_stock_view
+        )
+
+        refresh_stock_view()
 
     def genel_stok_pdf_raporu(self):
         conn = None
