@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 1
+LATEST_SCHEMA_VERSION = 3
 
 MAMUL_MOVEMENT_TYPES = (
     "PAKETLEME",
@@ -116,11 +116,108 @@ def _migration_1_mamul_movement_contract(conn):
     """)
 
 
+def _migration_2_audit_trail(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS denetim_kayitlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            olay_zamani TEXT NOT NULL,
+            kullanici_id INTEGER,
+            personel_id INTEGER,
+            kullanici_adi TEXT,
+            ad_soyad TEXT,
+            modul TEXT NOT NULL,
+            islem TEXT NOT NULL,
+            kayit_turu TEXT,
+            kayit_id INTEGER,
+            aciklama TEXT,
+            eski_deger_json TEXT,
+            yeni_deger_json TEXT,
+            oturum_id TEXT
+        )
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_denetim_olay_zamani
+        ON denetim_kayitlari (olay_zamani)
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_denetim_modul_islem
+        ON denetim_kayitlari (modul, islem)
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_denetim_kayit
+        ON denetim_kayitlari (kayit_turu, kayit_id)
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_denetim_kullanici
+        ON denetim_kayitlari (kullanici_id, olay_zamani)
+    """)
+
+
+def _migration_3_packaging_contract(conn):
+    columns = {
+        row[1]
+        for row in conn.execute(
+            "PRAGMA table_info(paketleme)"
+        ).fetchall()
+    }
+
+    if not columns:
+        raise RuntimeError(
+            "Migration 3: paketleme tablosu bulunamadı."
+        )
+
+    required_columns = (
+        (
+            "baslama_saati",
+            "TEXT",
+        ),
+        (
+            "bitis_saati",
+            "TEXT",
+        ),
+        (
+            "paketleme_suresi_dakika",
+            "INTEGER",
+        ),
+        (
+            "koli_ici_adet",
+            "INTEGER",
+        ),
+    )
+
+    for column_name, column_type in required_columns:
+        if column_name in columns:
+            continue
+
+        conn.execute(
+            f"ALTER TABLE paketleme "
+            f"ADD COLUMN {column_name} {column_type}"
+        )
+
+
 MIGRATIONS = (
     (
         1,
         "mamul_stock_movement_contract",
         _migration_1_mamul_movement_contract,
+    ),
+    (
+        2,
+        "professional_audit_trail",
+        _migration_2_audit_trail,
+    ),
+    (
+        3,
+        "packaging_table_contract",
+        _migration_3_packaging_contract,
     ),
 )
 

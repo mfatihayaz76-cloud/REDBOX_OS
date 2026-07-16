@@ -6,6 +6,7 @@ from tkinter import messagebox, ttk
 from datetime import datetime
 
 from database.db import init_database, get_connection
+from database.audit_engine import denetim_kaydi_ekle
 from database.stock_engine import (
     uretim_stok_isle,
     lot_parti_plani_oner,
@@ -1715,7 +1716,7 @@ class RedboxOS(ctk.CTk):
                             tedarikci_id
                         )
 
-                conn.execute("""
+                cursor = conn.execute("""
                     INSERT INTO depo_kabul (
                         kabul_tarihi,
                         hammadde_id,
@@ -1747,6 +1748,37 @@ class RedboxOS(ctk.CTk):
                         timespec="seconds"
                     )
                 ))
+
+                depo_kabul_id = cursor.lastrowid
+
+                denetim_kaydi_ekle(
+                    conn,
+                    modul="DEPO_KABUL",
+                    islem="OLUSTURMA",
+                    kullanici=self.current_user,
+                    kayit_turu="depo_kabul",
+                    kayit_id=depo_kabul_id,
+                    aciklama=(
+                        "Hammadde depo kabul kaydı oluşturuldu."
+                    ),
+                    yeni_deger={
+                        "kabul_tarihi": tarih,
+                        "hammadde_id": hammadde_id,
+                        "hammadde": hammadde_adi,
+                        "tedarikci": tedarikci,
+                        "tedarikci_id": tedarikci_id,
+                        "tedarikci_lot_no": lot_no,
+                        "uretim_tarihi": urt,
+                        "skt_tett": skt,
+                        "miktar_kg": miktar_kg,
+                        "kabul_durumu": "KABUL",
+                        "aciklama": aciklama,
+                        "tekrar_eden_lot": bool(tekrar_lot),
+                    },
+                    oturum_id=self.current_user.get(
+                        "oturum_id"
+                    ),
+                )
 
                 conn.commit()
 
@@ -2121,23 +2153,77 @@ class RedboxOS(ctk.CTk):
         if not cevap:
             return
 
+        conn = None
+
         try:
             conn = get_connection()
+            conn.execute("BEGIN IMMEDIATE")
+
+            eski_kayit = conn.execute("""
+                SELECT
+                    dk.id,
+                    dk.kabul_tarihi,
+                    dk.hammadde_id,
+                    h.ad AS hammadde,
+                    dk.tedarikci,
+                    dk.tedarikci_id,
+                    dk.tedarikci_lot_no,
+                    dk.uretim_tarihi,
+                    dk.skt_tett,
+                    dk.miktar_kg,
+                    dk.kabul_durumu,
+                    dk.aciklama
+                FROM depo_kabul dk
+                JOIN hammaddeler h
+                  ON h.id = dk.hammadde_id
+                WHERE dk.id = ?
+            """, (
+                kayit_id,
+            )).fetchone()
+
+            if eski_kayit is None:
+                raise ValueError(
+                    "Silinecek depo kabul kaydı bulunamadı."
+                )
+
             conn.execute(
                 "DELETE FROM depo_kabul WHERE id = ?",
                 (kayit_id,)
             )
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="DEPO_KABUL",
+                islem="SILME",
+                kullanici=self.current_user,
+                kayit_turu="depo_kabul",
+                kayit_id=kayit_id,
+                aciklama=(
+                    "Hammadde depo kabul kaydı silindi."
+                ),
+                eski_deger=dict(eski_kayit),
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
+
             conn.commit()
-            conn.close()
 
             self.depo_kabul_ozet_guncelle()
             self.depo_kabul_listele()
 
         except Exception as hata:
+            if conn is not None:
+                conn.rollback()
+
             messagebox.showerror(
                 "Silme Hatası",
                 f"Kayıt silinemedi:\n{hata}"
             )
+
+        finally:
+            if conn is not None:
+                conn.close()
 
     def uretim(self):
         self.show_page(
@@ -3172,6 +3258,41 @@ class RedboxOS(ctk.CTk):
                     lot_parti_plani=lot_parti_plani
                 )
 
+                denetim_kaydi_ekle(
+                    conn,
+                    modul="URETIM",
+                    islem="OLUSTURMA",
+                    kullanici=self.current_user,
+                    kayit_turu="uretim",
+                    kayit_id=uretim_id,
+                    aciklama=(
+                        "Üretim kaydı ve hammadde lot "
+                        "tüketimleri oluşturuldu."
+                    ),
+                    yeni_deger={
+                        "uretim_tarihi": tarih,
+                        "baslama_saati": baslama_saati,
+                        "bitis_saati": bitis_saati,
+                        "uretim_suresi_dakika": (
+                            uretim_suresi_dakika
+                        ),
+                        "urun_lot_no": lot_no,
+                        "parti_sayisi": parti,
+                        "teorik_uretim_kg": teorik,
+                        "uretim_firesi_kg": fire,
+                        "net_uretim_kg": net,
+                        "personel_1": personel_1,
+                        "personel_2": personel_2,
+                        "aciklama": aciklama,
+                        "lot_plani_kalem_sayisi": len(
+                            lot_parti_plani
+                        ),
+                    },
+                    oturum_id=self.current_user.get(
+                        "oturum_id"
+                    ),
+                )
+
                 conn.commit()
 
             except Exception:
@@ -3478,25 +3599,74 @@ class RedboxOS(ctk.CTk):
         if not cevap:
             return
 
+        conn = None
+
         try:
             conn = get_connection()
+            conn.execute("BEGIN IMMEDIATE")
+
+            eski_kayit = conn.execute("""
+                SELECT
+                    id,
+                    uretim_tarihi,
+                    baslama_saati,
+                    bitis_saati,
+                    uretim_suresi_dakika,
+                    urun_lot_no,
+                    parti_sayisi,
+                    teorik_uretim_kg,
+                    uretim_firesi_kg,
+                    net_uretim_kg,
+                    personel_1,
+                    personel_2,
+                    aciklama
+                FROM uretim
+                WHERE id = ?
+            """, (
+                kayit_id,
+            )).fetchone()
+
+            if eski_kayit is None:
+                raise ValueError(
+                    "Silinecek üretim kaydı bulunamadı."
+                )
 
             conn.execute(
                 "DELETE FROM uretim WHERE id = ?",
                 (kayit_id,)
             )
 
+            denetim_kaydi_ekle(
+                conn,
+                modul="URETIM",
+                islem="SILME",
+                kullanici=self.current_user,
+                kayit_turu="uretim",
+                kayit_id=kayit_id,
+                aciklama="Üretim kaydı silindi.",
+                eski_deger=dict(eski_kayit),
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
+
             conn.commit()
-            conn.close()
 
             self.uretim_ozet_guncelle()
             self.uretim_listele()
 
         except Exception as hata:
+            if conn is not None:
+                conn.rollback()
+
             messagebox.showerror(
                 "Silme Hatası",
                 f"Üretim kaydı silinemedi:\n{hata}"
             )
+
+        finally:
+            if conn is not None:
+                conn.close()
 
     def paketleme(self):
         self.show_page(
@@ -4235,6 +4405,38 @@ class RedboxOS(ctk.CTk):
                     hareket_tipi="PAKETLEME",
                     yon="GIRIS",
                     paket_adedi=adet,
+                )
+
+                denetim_kaydi_ekle(
+                    conn,
+                    modul="PAKETLEME",
+                    islem="OLUSTURMA",
+                    kullanici=self.current_user,
+                    kayit_turu="paketleme",
+                    kayit_id=paketleme_id,
+                    aciklama=(
+                        "Paketleme kaydı ve mamul stok "
+                        "giriş hareketi oluşturuldu."
+                    ),
+                    yeni_deger={
+                        "paketleme_tarihi": tarih,
+                        "baslama_saati": baslama_saati,
+                        "bitis_saati": bitis_saati,
+                        "paketleme_suresi_dakika": (
+                            paketleme_suresi_dakika
+                        ),
+                        "uretim_id": uretim_id,
+                        "urun_lotu": lot_secim,
+                        "ambalaj_gram": ambalaj_gram,
+                        "paket_adedi": adet,
+                        "koli_ici_adet": koli_ici,
+                        "paketlenen_kg": paketlenen_kg,
+                        "paketleme_firesi_kg": fire,
+                        "aciklama": aciklama,
+                    },
+                    oturum_id=self.current_user.get(
+                        "oturum_id"
+                    ),
                 )
 
                 conn.commit()
@@ -5161,6 +5363,52 @@ class RedboxOS(ctk.CTk):
                         hareket_tarihi=tarih,
                         paket_adedi=satir["paket_adedi"],
                     )
+
+                denetim_kaydi_ekle(
+                    conn,
+                    modul="SEVKIYAT",
+                    islem="OLUSTURMA",
+                    kullanici=self.current_user,
+                    kayit_turu="sevkiyat",
+                    kayit_id=sevkiyat_id,
+                    aciklama=(
+                        "Sevkiyat kaydı ve mamul stok "
+                        "çıkış hareketleri oluşturuldu."
+                    ),
+                    yeni_deger={
+                        "sevkiyat_tarihi": tarih,
+                        "musteri": musteri,
+                        "musteri_id": musteri_id,
+                        "yeni_musteri_karti": (
+                            musteri_row is None
+                        ),
+                        "arac_plaka": plaka,
+                        "belge_no": belge_no,
+                        "uretim_id": stok["uretim_id"],
+                        "ambalaj_gram": (
+                            stok["ambalaj_gram"]
+                        ),
+                        "koli_adedi": koli,
+                        "acik_paket_adedi": acik,
+                        "toplam_paket": toplam_paket,
+                        "soguk_zincir": bool(soguk_zincir),
+                        "aciklama": aciklama,
+                        "stok_dagitim": [
+                            {
+                                "paketleme_id": (
+                                    satir["paketleme_id"]
+                                ),
+                                "paket_adedi": (
+                                    satir["paket_adedi"]
+                                ),
+                            }
+                            for satir in dagitim
+                        ],
+                    },
+                    oturum_id=self.current_user.get(
+                        "oturum_id"
+                    ),
+                )
 
                 conn.commit()
 

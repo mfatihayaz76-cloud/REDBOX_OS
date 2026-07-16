@@ -99,9 +99,13 @@ def init_database():
     CREATE TABLE IF NOT EXISTS paketleme (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         paketleme_tarihi TEXT NOT NULL,
+        baslama_saati TEXT,
+        bitis_saati TEXT,
+        paketleme_suresi_dakika INTEGER,
         uretim_id INTEGER NOT NULL,
         ambalaj_gram INTEGER NOT NULL CHECK(ambalaj_gram IN (500, 2500)),
         paket_adedi INTEGER NOT NULL CHECK(paket_adedi >= 0),
+        koli_ici_adet INTEGER,
         paketlenen_kg REAL NOT NULL,
         paketleme_firesi_kg REAL NOT NULL DEFAULT 0,
         aciklama TEXT,
