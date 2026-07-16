@@ -3,11 +3,16 @@ import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 import customtkinter as ctk
 
 from database.db import get_connection
+from database.audit_engine import (
+    denetim_kaydi_ekle,
+    denetim_kayitlarini_getir,
+)
+from database.migrations import run_migrations
 from ui.login import PBKDF2_ITERATIONS, _parola_hash
 
 
@@ -292,6 +297,352 @@ class SystemPage:
             fill="x",
             padx=20,
             pady=(10, 20),
+        )
+
+        if self._hesap_yonetim_yetkisi():
+            self._audit_panel(ana)
+
+    def _audit_panel(self, parent):
+        panel = ctk.CTkFrame(
+            parent,
+            corner_radius=12,
+        )
+        panel.pack(
+            fill="x",
+            padx=20,
+            pady=(0, 25),
+        )
+
+        header = ctk.CTkFrame(
+            panel,
+            fg_color="transparent",
+        )
+        header.pack(
+            fill="x",
+            padx=18,
+            pady=(18, 8),
+        )
+
+        ctk.CTkLabel(
+            header,
+            text="DENETİM KAYITLARI",
+            font=("Arial", 17, "bold"),
+        ).pack(side="left")
+
+        self.audit_count_label = ctk.CTkLabel(
+            header,
+            text="0 kayıt",
+            font=("Arial", 11, "bold"),
+            text_color="#A3A3A3",
+        )
+        self.audit_count_label.pack(side="right")
+
+        ctk.CTkLabel(
+            panel,
+            text=(
+                "Giriş, stok, üretim, reçete, personel ve "
+                "sistem işlemlerinin değiştirilemez operasyon izi."
+            ),
+            font=("Arial", 12),
+            text_color="#A3A3A3",
+        ).pack(
+            anchor="w",
+            padx=18,
+            pady=(0, 12),
+        )
+
+        controls = ctk.CTkFrame(
+            panel,
+            fg_color="transparent",
+        )
+        controls.pack(
+            fill="x",
+            padx=18,
+            pady=(0, 12),
+        )
+        controls.grid_columnconfigure(0, weight=1)
+
+        self.audit_search = ctk.CTkEntry(
+            controls,
+            placeholder_text=(
+                "Denetimde ara: kullanıcı, modül, "
+                "işlem, kayıt, açıklama..."
+            ),
+            height=38,
+        )
+        self.audit_search.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=(0, 8),
+        )
+        self.audit_search.bind(
+            "<KeyRelease>",
+            lambda _event: self._audit_refresh(),
+        )
+
+        self.audit_module_filter = ctk.CTkComboBox(
+            controls,
+            values=[
+                "TÜM MODÜLLER",
+                "GUVENLIK",
+                "DEPO_KABUL",
+                "URETIM",
+                "PAKETLEME",
+                "SEVKIYAT",
+                "TEMIZLIK",
+                "RECETE",
+                "PERSONEL",
+                "SISTEM",
+            ],
+            width=155,
+            height=38,
+            state="readonly",
+            command=lambda _value: self._audit_refresh(),
+        )
+        self.audit_module_filter.grid(
+            row=0,
+            column=1,
+            padx=4,
+        )
+        self.audit_module_filter.set("TÜM MODÜLLER")
+
+        self.audit_action_filter = ctk.CTkComboBox(
+            controls,
+            values=[
+                "TÜM İŞLEMLER",
+                "GIRIS_BASARILI",
+                "GIRIS_BASARISIZ",
+                "OLUSTURMA",
+                "GUNCELLEME",
+                "SILME",
+                "AKTIFLIK_DEGISIKLIGI",
+                "YETKI_DEGISIKLIGI",
+                "DURUM_DEGISIKLIGI",
+                "YEDEKLEME",
+                "GERI_YUKLEME",
+            ],
+            width=190,
+            height=38,
+            state="readonly",
+            command=lambda _value: self._audit_refresh(),
+        )
+        self.audit_action_filter.grid(
+            row=0,
+            column=2,
+            padx=(4, 0),
+        )
+        self.audit_action_filter.set("TÜM İŞLEMLER")
+
+        table_frame = ctk.CTkFrame(
+            panel,
+            fg_color="transparent",
+        )
+        table_frame.pack(
+            fill="both",
+            expand=True,
+            padx=18,
+            pady=(0, 18),
+        )
+        table_frame.grid_columnconfigure(0, weight=1)
+        table_frame.grid_rowconfigure(0, weight=1)
+
+        style = ttk.Style()
+        style.configure(
+            "SystemAudit.Treeview",
+            background="#252525",
+            fieldbackground="#252525",
+            foreground="#E5E7EB",
+            rowheight=34,
+            borderwidth=0,
+            font=("Arial", 11),
+        )
+        style.configure(
+            "SystemAudit.Treeview.Heading",
+            background="#343434",
+            foreground="#F3F4F6",
+            relief="flat",
+            font=("Arial", 11, "bold"),
+        )
+        style.map(
+            "SystemAudit.Treeview",
+            background=[("selected", "#1F6AA5")],
+            foreground=[("selected", "#FFFFFF")],
+        )
+
+        columns = (
+            "time",
+            "user",
+            "module",
+            "action",
+            "record",
+            "description",
+        )
+
+        self.audit_tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            style="SystemAudit.Treeview",
+            height=10,
+            selectmode="browse",
+        )
+
+        headings = (
+            ("time", "TARİH / SAAT", 145, "w"),
+            ("user", "KULLANICI", 130, "w"),
+            ("module", "MODÜL", 100, "w"),
+            ("action", "İŞLEM", 155, "w"),
+            ("record", "KAYIT", 145, "w"),
+            ("description", "AÇIKLAMA", 330, "w"),
+        )
+
+        for column, title, width, anchor in headings:
+            self.audit_tree.heading(
+                column,
+                text=title,
+                anchor=anchor,
+            )
+            self.audit_tree.column(
+                column,
+                width=width,
+                minwidth=80,
+                anchor=anchor,
+                stretch=(
+                    column == "description"
+                ),
+            )
+
+        self.audit_tree.tag_configure(
+            "even",
+            background="#252525",
+        )
+        self.audit_tree.tag_configure(
+            "odd",
+            background="#2D2D2D",
+        )
+        self.audit_tree.tag_configure(
+            "security",
+            foreground="#FBBF24",
+        )
+        self.audit_tree.tag_configure(
+            "delete",
+            foreground="#FCA5A5",
+        )
+
+        vertical = ttk.Scrollbar(
+            table_frame,
+            orient="vertical",
+            command=self.audit_tree.yview,
+        )
+        horizontal = ttk.Scrollbar(
+            table_frame,
+            orient="horizontal",
+            command=self.audit_tree.xview,
+        )
+
+        self.audit_tree.configure(
+            yscrollcommand=vertical.set,
+            xscrollcommand=horizontal.set,
+        )
+
+        self.audit_tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+        vertical.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+        )
+        horizontal.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+        )
+
+        self._audit_refresh()
+
+    def _audit_refresh(self):
+        if not self._hesap_yonetim_yetkisi():
+            return
+
+        search_text = self.audit_search.get().strip()
+
+        module_value = (
+            self.audit_module_filter.get().strip()
+        )
+        action_value = (
+            self.audit_action_filter.get().strip()
+        )
+
+        module_filter = (
+            None
+            if module_value == "TÜM MODÜLLER"
+            else module_value
+        )
+        action_filter = (
+            None
+            if action_value == "TÜM İŞLEMLER"
+            else action_value
+        )
+
+        conn = get_connection()
+
+        try:
+            rows = denetim_kayitlarini_getir(
+                conn,
+                modul=module_filter,
+                islem=action_filter,
+                arama=search_text or None,
+                limit=500,
+            )
+        finally:
+            conn.close()
+
+        for item in self.audit_tree.get_children():
+            self.audit_tree.delete(item)
+
+        for index, row in enumerate(rows):
+            tags = [
+                "even" if index % 2 == 0 else "odd"
+            ]
+
+            if row["modul"] == "GUVENLIK":
+                tags.append("security")
+
+            if row["islem"] == "SILME":
+                tags.append("delete")
+
+            user_text = (
+                row["ad_soyad"]
+                or row["kullanici_adi"]
+                or "Bilinmiyor"
+            )
+
+            record_text = row["kayit_turu"] or "-"
+
+            if row["kayit_id"] is not None:
+                record_text += f' #{row["kayit_id"]}'
+
+            self.audit_tree.insert(
+                "",
+                "end",
+                iid=str(row["id"]),
+                values=(
+                    row["olay_zamani"],
+                    user_text,
+                    row["modul"],
+                    row["islem"],
+                    record_text,
+                    row["aciklama"] or "-",
+                ),
+                tags=tuple(tags),
+            )
+
+        self.audit_count_label.configure(
+            text=f"{len(rows)} kayıt"
         )
 
     def _module_header(self, parent, title, description):
@@ -683,13 +1034,17 @@ class SystemPage:
                 )
 
             existing = conn.execute("""
-                SELECT id
+                SELECT
+                    id,
+                    kullanici_adi,
+                    yonetici,
+                    aktif
                 FROM kullanici_hesaplari
                 WHERE personel_id = ?
             """, (personel_row["id"],)).fetchone()
 
             if existing is None:
-                conn.execute("""
+                account_id = conn.execute("""
                     INSERT INTO kullanici_hesaplari (
                         personel_id,
                         kullanici_adi,
@@ -708,9 +1063,14 @@ class SystemPage:
                     salt,
                     PBKDF2_ITERATIONS,
                     now,
-                ))
+                )).lastrowid
+
                 action = "oluşturuldu"
+                audit_action = "OLUSTURMA"
+                old_value = None
             else:
+                account_id = existing["id"]
+
                 conn.execute("""
                     UPDATE kullanici_hesaplari
                     SET kullanici_adi = ?,
@@ -724,9 +1084,50 @@ class SystemPage:
                     password_hash,
                     salt,
                     PBKDF2_ITERATIONS,
-                    existing["id"],
+                    account_id,
                 ))
+
                 action = "güncellendi"
+                audit_action = "GUNCELLEME"
+                old_value = {
+                    "kullanici_adi": (
+                        existing["kullanici_adi"]
+                    ),
+                    "yonetici": bool(
+                        existing["yonetici"]
+                    ),
+                    "aktif": bool(existing["aktif"]),
+                }
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="SISTEM",
+                islem=audit_action,
+                kullanici=self.app.current_user,
+                kayit_turu="kullanici_hesaplari",
+                kayit_id=account_id,
+                aciklama=(
+                    "Kullanıcı hesabı oluşturuldu veya "
+                    "güvenli şekilde güncellendi."
+                ),
+                eski_deger=old_value,
+                yeni_deger={
+                    "personel_id": personel_row["id"],
+                    "personel": personel,
+                    "kullanici_adi": username,
+                    "yonetici": (
+                        bool(existing["yonetici"])
+                        if existing is not None
+                        else False
+                    ),
+                    "aktif": True,
+                    "parola_degisikligi": True,
+                    "parola_verisi_kaydedildi": False,
+                },
+                oturum_id=self.app.current_user.get(
+                    "oturum_id"
+                ),
+            )
 
             conn.commit()
 
@@ -824,12 +1225,42 @@ class SystemPage:
             f"redbox_os_manual_{timestamp}.db"
         )
 
+        audit_conn = None
+
         try:
             self._verified_database_backup(
                 source,
                 target,
             )
+
+            audit_conn = get_connection()
+
+            denetim_kaydi_ekle(
+                audit_conn,
+                modul="SISTEM",
+                islem="YEDEKLEME",
+                kullanici=self.app.current_user,
+                kayit_turu="database_backup",
+                aciklama=(
+                    "Doğrulanmış manuel veritabanı "
+                    "yedeği oluşturuldu."
+                ),
+                yeni_deger={
+                    "dosya_adi": target.name,
+                    "butunluk": "OK",
+                },
+                oturum_id=self.app.current_user.get(
+                    "oturum_id"
+                ),
+            )
+
+            audit_conn.commit()
+
         except Exception as exc:
+            if audit_conn is not None:
+                audit_conn.rollback()
+
+            target.unlink(missing_ok=True)
             messagebox.showerror(
                 "Veritabanı Yedeği",
                 (
@@ -838,6 +1269,10 @@ class SystemPage:
                 ),
             )
             return
+
+        finally:
+            if audit_conn is not None:
+                audit_conn.close()
 
         messagebox.showinfo(
             "Veritabanı Yedeği",
@@ -949,6 +1384,8 @@ class SystemPage:
                 live_path,
             )
 
+            run_migrations(live_path)
+
             final_integrity = (
                 self._database_integrity(
                     live_path
@@ -960,6 +1397,42 @@ class SystemPage:
                     "Canlı veritabanının son doğrulaması "
                     f"başarısız: {final_integrity}"
                 )
+
+            audit_conn = get_connection()
+
+            try:
+                denetim_kaydi_ekle(
+                    audit_conn,
+                    modul="SISTEM",
+                    islem="GERI_YUKLEME",
+                    kullanici=self.app.current_user,
+                    kayit_turu="database_restore",
+                    aciklama=(
+                        "Doğrulanmış veritabanı yedeği "
+                        "canlı sisteme geri yüklendi."
+                    ),
+                    yeni_deger={
+                        "kaynak_dosya": (
+                            selected_path.name
+                        ),
+                        "guvenlik_yedegi": (
+                            safety_backup.name
+                        ),
+                        "butunluk": "OK",
+                    },
+                    oturum_id=self.app.current_user.get(
+                        "oturum_id"
+                    ),
+                )
+
+                audit_conn.commit()
+
+            except Exception:
+                audit_conn.rollback()
+                raise
+
+            finally:
+                audit_conn.close()
 
         except Exception as exc:
             messagebox.showerror(

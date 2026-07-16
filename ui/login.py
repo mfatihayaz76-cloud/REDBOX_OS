@@ -9,6 +9,10 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 from database.db import get_connection
+from database.audit_engine import (
+    denetim_kaydi_ekle,
+    yeni_oturum_id,
+)
 
 
 PBKDF2_ITERATIONS = 600_000
@@ -28,6 +32,7 @@ class LoginWindow(ctk.CTk):
         super().__init__()
 
         self.authenticated_user = None
+        self.oturum_id = yeni_oturum_id()
         self.title("REDBOX OS — Giriş")
         self.geometry("520x650")
         self.resizable(False, False)
@@ -455,6 +460,21 @@ class LoginWindow(ctk.CTk):
                 )
 
             if not dogru:
+                denetim_kaydi_ekle(
+                    conn,
+                    modul="GUVENLIK",
+                    islem="GIRIS_BASARISIZ",
+                    kullanici={
+                        "kullanici_adi": kullanici,
+                    },
+                    aciklama=(
+                        "Geçersiz kullanıcı adı veya parola "
+                        "ile giriş denemesi."
+                    ),
+                    oturum_id=self.oturum_id,
+                )
+                conn.commit()
+
                 messagebox.showerror(
                     "Giriş Başarısız",
                     "Kullanıcı adı veya parola hatalı.",
@@ -471,17 +491,7 @@ class LoginWindow(ctk.CTk):
                 ORDER BY yetki_kodu
             """, (row["personel_id"],)).fetchall()
 
-            conn.execute("""
-                UPDATE kullanici_hesaplari
-                SET son_giris_zamani = ?
-                WHERE id = ?
-            """, (
-                datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
-                row["id"],
-            ))
-            conn.commit()
-
-            self.authenticated_user = {
+            authenticated_user = {
                 "hesap_id": row["id"],
                 "personel_id": row["personel_id"],
                 "kullanici_adi": row["kullanici_adi"],
@@ -491,7 +501,31 @@ class LoginWindow(ctk.CTk):
                     item["yetki_kodu"]
                     for item in yetki_rows
                 ],
+                "oturum_id": self.oturum_id,
             }
+
+            conn.execute("""
+                UPDATE kullanici_hesaplari
+                SET son_giris_zamani = ?
+                WHERE id = ?
+            """, (
+                datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                row["id"],
+            ))
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="GUVENLIK",
+                islem="GIRIS_BASARILI",
+                kullanici=authenticated_user,
+                kayit_turu="kullanici_hesaplari",
+                kayit_id=row["id"],
+                aciklama="Kullanıcı oturumu başarıyla açıldı.",
+                oturum_id=self.oturum_id,
+            )
+
+            conn.commit()
+            self.authenticated_user = authenticated_user
 
         finally:
             conn.close()
