@@ -2,6 +2,8 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 
+from database.migrations import run_migrations
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "database" / "redbox_os.db"
 
@@ -150,6 +152,8 @@ def init_database():
         paketleme_id INTEGER NOT NULL,
         hareket_tipi TEXT NOT NULL CHECK(
             hareket_tipi IN (
+                'PAKETLEME',
+                'SEVKIYAT',
                 'TARIHSEL_KAPANIS',
                 'IADE',
                 'IMHA',
@@ -605,6 +609,8 @@ def init_database():
 
     conn.commit()
     conn.close()
+
+    run_migrations(DB_PATH)
 
     print("REDBOX OS VERITABANI HAZIR")
     print(f"Veritabani: {DB_PATH}")
