@@ -355,7 +355,9 @@ class RedboxOS(ctk.CTk):
             recete = conn.execute("""
                 SELECT
                     id,
-                    parti_teorik_kg
+                    parti_teorik_kg,
+                    revizyon_no,
+                    gecerlilik_tarihi
                 FROM receteler
                 WHERE aktif = 1
                 ORDER BY id
@@ -8444,17 +8446,48 @@ class RedboxOS(ctk.CTk):
 
             conn = get_connection()
 
+            gorev_aciklama = (
+                self.temizlik_aciklama.get().strip()
+                or None
+            )
+
             complete_cleaning_task(
                 conn,
                 gorev["plan_id"],
                 gorev["planlanan_tarih"],
                 uygulayan,
                 kontrol_eden,
-                aciklama=(
-                    self.temizlik_aciklama.get().strip()
-                    or None
-                ),
+                aciklama=gorev_aciklama,
                 uretim_id=gorev["uretim_id"],
+            )
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="TEMIZLIK",
+                islem="DURUM_DEGISIKLIGI",
+                kullanici=self.current_user,
+                kayit_turu="temizlik_plani",
+                kayit_id=gorev["plan_id"],
+                aciklama=(
+                    "Planlı temizlik görevi tamamlandı."
+                ),
+                eski_deger={
+                    "durum": "PLANLANDI",
+                    "planlanan_tarih": (
+                        gorev["planlanan_tarih"]
+                    ),
+                    "gorev_adi": gorev["gorev_adi"],
+                    "uretim_id": gorev["uretim_id"],
+                },
+                yeni_deger={
+                    "durum": "TAMAMLANDI",
+                    "uygulayan": uygulayan,
+                    "kontrol_eden": kontrol_eden,
+                    "aciklama": gorev_aciklama,
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
             )
 
             conn.commit()
@@ -8590,7 +8623,7 @@ class RedboxOS(ctk.CTk):
 
             conn = get_connection()
 
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO temizlik (
                     tarih,
@@ -8625,6 +8658,30 @@ class RedboxOS(ctk.CTk):
                     durum,
                     aciklama,
                 )
+            )
+
+            temizlik_id = cursor.lastrowid
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="TEMIZLIK",
+                islem="OLUSTURMA",
+                kullanici=self.current_user,
+                kayit_turu="temizlik",
+                kayit_id=temizlik_id,
+                aciklama="Manuel temizlik kaydı oluşturuldu.",
+                yeni_deger={
+                    "tarih": tarih,
+                    "alan_ekipman": alan,
+                    "yapilan_islem": yapilan_islem,
+                    "uygulayan": uygulayan,
+                    "kontrol_eden": kontrol_eden,
+                    "durum": durum,
+                    "aciklama": aciklama,
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
             )
 
             conn.commit()
@@ -8848,6 +8905,29 @@ class RedboxOS(ctk.CTk):
 
         try:
             conn = get_connection()
+            conn.execute("BEGIN IMMEDIATE")
+
+            eski_kayit = conn.execute("""
+                SELECT
+                    id,
+                    tarih,
+                    alan_ekipman,
+                    yapilan_islem,
+                    uygulayan,
+                    kontrol_eden,
+                    durum,
+                    aciklama,
+                    kayit_zamani
+                FROM temizlik
+                WHERE id = ?
+            """, (
+                temizlik_id,
+            )).fetchone()
+
+            if eski_kayit is None:
+                raise ValueError(
+                    "Silinecek temizlik kaydı bulunamadı."
+                )
 
             cursor = conn.execute(
                 """
@@ -8861,8 +8941,22 @@ class RedboxOS(ctk.CTk):
 
             if cursor.rowcount != 1:
                 raise ValueError(
-                    "Silinecek temizlik kaydı bulunamadı."
+                    "Temizlik kaydı güvenli şekilde silinemedi."
                 )
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="TEMIZLIK",
+                islem="SILME",
+                kullanici=self.current_user,
+                kayit_turu="temizlik",
+                kayit_id=temizlik_id,
+                aciklama="Temizlik kaydı silindi.",
+                eski_deger=dict(eski_kayit),
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
 
             conn.commit()
 
@@ -9684,6 +9778,15 @@ class RedboxOS(ctk.CTk):
                         "Bu hammadde zaten aktif olarak tanımlı."
                     )
 
+                hammadde_id = ayni["id"]
+                denetim_islemi = (
+                    "AKTIFLIK_DEGISIKLIGI"
+                )
+                eski_deger = {
+                    "ad": ayni["ad"],
+                    "aktif": False,
+                }
+
                 conn.execute("""
                     UPDATE hammaddeler
                     SET
@@ -9692,10 +9795,10 @@ class RedboxOS(ctk.CTk):
                     WHERE id = ?
                 """, (
                     birim,
-                    ayni["id"],
+                    hammadde_id,
                 ))
             else:
-                conn.execute("""
+                cursor = conn.execute("""
                     INSERT INTO hammaddeler (
                         ad,
                         birim,
@@ -9706,6 +9809,32 @@ class RedboxOS(ctk.CTk):
                     ad,
                     birim,
                 ))
+
+                hammadde_id = cursor.lastrowid
+                denetim_islemi = "OLUSTURMA"
+                eski_deger = None
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="RECETE",
+                islem=denetim_islemi,
+                kullanici=self.current_user,
+                kayit_turu="hammaddeler",
+                kayit_id=hammadde_id,
+                aciklama=(
+                    "Reçete merkezinde hammadde "
+                    "tanımı oluşturuldu veya aktifleştirildi."
+                ),
+                eski_deger=eski_deger,
+                yeni_deger={
+                    "ad": ad,
+                    "birim": birim,
+                    "aktif": True,
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
 
             conn.commit()
 
@@ -10341,6 +10470,54 @@ class RedboxOS(ctk.CTk):
                 raise RuntimeError(
                     "Yeni reçete kalem sayısı doğrulaması başarısız."
                 )
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="RECETE",
+                islem="GUNCELLEME",
+                kullanici=self.current_user,
+                kayit_turu="receteler",
+                kayit_id=yeni_recete_id,
+                aciklama=(
+                    "Yeni reçete revizyonu oluşturuldu "
+                    "ve önceki revizyon pasife alındı."
+                ),
+                eski_deger={
+                    "recete_id": kaynak["id"],
+                    "revizyon_no": (
+                        kaynak["revizyon_no"]
+                    ),
+                    "gecerlilik_tarihi": (
+                        kaynak["gecerlilik_tarihi"]
+                    ),
+                    "aktif": True,
+                    "kalem_sayisi": len(
+                        kaynak_kalemler
+                    ),
+                },
+                yeni_deger={
+                    "recete_id": yeni_recete_id,
+                    "revizyon_no": yeni_revizyon_no,
+                    "gecerlilik_tarihi": tarih,
+                    "aktif": True,
+                    "kalem_sayisi": len(miktarlar),
+                    "parti_teorik_kg": (
+                        parti_teorik_kg
+                    ),
+                    "revizyon_aciklamasi": (
+                        aciklama
+                    ),
+                    "olusturan_personel_id": (
+                        personel["id"]
+                    ),
+                    "formul_miktarlari_kaydedildi": (
+                        False
+                    ),
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
 
             conn.commit()
 
@@ -10987,6 +11164,28 @@ class RedboxOS(ctk.CTk):
                 "%d.%m.%Y %H:%M:%S"
             )
 
+            eski_yetkiler = {
+                row["yetki_kodu"]: bool(row["aktif"])
+                for row in conn.execute("""
+                    SELECT
+                        yetki_kodu,
+                        aktif
+                    FROM personel_yetkileri
+                    WHERE personel_id = ?
+                    ORDER BY yetki_kodu
+                """, (
+                    personel_id,
+                )).fetchall()
+            }
+
+            yeni_yetkiler = {
+                yetki_kodu: bool(var.get())
+                for (
+                    yetki_kodu,
+                    var
+                ) in self.personel_yetki_vars.items()
+            }
+
             conn.execute("BEGIN")
 
             for (
@@ -11019,6 +11218,28 @@ class RedboxOS(ctk.CTk):
                     aktif,
                     now,
                 ))
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="PERSONEL",
+                islem="YETKI_DEGISIKLIGI",
+                kullanici=self.current_user,
+                kayit_turu="personel_yetkileri",
+                kayit_id=personel_id,
+                aciklama=(
+                    f"{ad_soyad} personelinin "
+                    "görev/yetkileri güncellendi."
+                ),
+                eski_deger={
+                    "yetkiler": eski_yetkiler,
+                },
+                yeni_deger={
+                    "yetkiler": yeni_yetkiler,
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
 
             conn.commit()
 
@@ -11112,7 +11333,7 @@ class RedboxOS(ctk.CTk):
 
             conn = get_connection()
 
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO personeller (
                     ad_soyad,
@@ -11131,6 +11352,27 @@ class RedboxOS(ctk.CTk):
                         "%d.%m.%Y %H:%M:%S"
                     )
                 )
+            )
+
+            personel_id = cursor.lastrowid
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="PERSONEL",
+                islem="OLUSTURMA",
+                kullanici=self.current_user,
+                kayit_turu="personeller",
+                kayit_id=personel_id,
+                aciklama="Yeni personel kaydı oluşturuldu.",
+                yeni_deger={
+                    "ad_soyad": ad_soyad,
+                    "gorev": gorev or None,
+                    "aktif": True,
+                    "aciklama": aciklama or None,
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
             )
 
             conn.commit()
@@ -11217,6 +11459,23 @@ class RedboxOS(ctk.CTk):
 
             conn = get_connection()
 
+            personel = conn.execute("""
+                SELECT
+                    id,
+                    ad_soyad,
+                    gorev,
+                    aktif
+                FROM personeller
+                WHERE id = ?
+            """, (
+                personel_id,
+            )).fetchone()
+
+            if personel is None:
+                raise ValueError(
+                    "Durumu değiştirilecek personel bulunamadı."
+                )
+
             if yeni_aktif == 0:
                 aktif_sayi = conn.execute(
                     """
@@ -11232,6 +11491,8 @@ class RedboxOS(ctk.CTk):
                         "personel bulunmalıdır."
                     )
 
+            conn.execute("BEGIN IMMEDIATE")
+
             conn.execute(
                 """
                 UPDATE personeller
@@ -11242,6 +11503,28 @@ class RedboxOS(ctk.CTk):
                     yeni_aktif,
                     personel_id
                 )
+            )
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="PERSONEL",
+                islem="AKTIFLIK_DEGISIKLIGI",
+                kullanici=self.current_user,
+                kayit_turu="personeller",
+                kayit_id=personel_id,
+                aciklama=(
+                    f'{personel["ad_soyad"]} personelinin '
+                    "aktiflik durumu değiştirildi."
+                ),
+                eski_deger={
+                    "aktif": bool(personel["aktif"]),
+                },
+                yeni_deger={
+                    "aktif": bool(yeni_aktif),
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
             )
 
             conn.commit()

@@ -110,6 +110,7 @@ def denetim_kayitlarini_getir(
     modul=None,
     islem=None,
     kullanici_adi=None,
+    arama=None,
     limit=500,
 ):
     where = []
@@ -126,6 +127,22 @@ def denetim_kayitlarini_getir(
     if kullanici_adi:
         where.append("kullanici_adi = ?")
         params.append(str(kullanici_adi).strip())
+
+    if arama:
+        search_value = f"%{str(arama).strip()}%"
+        where.append("""
+            (
+                COALESCE(kullanici_adi, '') LIKE ?
+                OR COALESCE(ad_soyad, '') LIKE ?
+                OR COALESCE(modul, '') LIKE ?
+                OR COALESCE(islem, '') LIKE ?
+                OR COALESCE(kayit_turu, '') LIKE ?
+                OR COALESCE(aciklama, '') LIKE ?
+                OR CAST(COALESCE(kayit_id, '') AS TEXT)
+                   LIKE ?
+            )
+        """)
+        params.extend([search_value] * 7)
 
     limit = max(1, min(int(limit), 5000))
     where_sql = (
