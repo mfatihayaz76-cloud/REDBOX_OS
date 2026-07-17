@@ -3,6 +3,7 @@ import customtkinter as ctk
 from ui.widgets.dashboard_cards import DashboardCards
 from ui.widgets.recent_activity import RecentActivity
 from ui.widgets.critical_stock import CriticalStock
+from ui.widgets.quality_alerts import QualityAlerts
 from ui.widgets.quick_actions import QuickActions
 
 
@@ -61,7 +62,8 @@ class DashboardPage(ctk.CTkFrame):
 
         self.right.grid_columnconfigure(0, weight=1)
         self.right.grid_rowconfigure(0, weight=3)
-        self.right.grid_rowconfigure(1, weight=1)
+        self.right.grid_rowconfigure(1, weight=2)
+        self.right.grid_rowconfigure(2, weight=1)
 
         self.stock = CriticalStock(self.right)
 
@@ -69,7 +71,16 @@ class DashboardPage(ctk.CTkFrame):
             row=0,
             column=0,
             sticky="nsew",
-            pady=(0, 10)
+            pady=(0, 8)
+        )
+
+        self.quality = QualityAlerts(self.right)
+
+        self.quality.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            pady=8
         )
 
         self.actions = QuickActions(
@@ -78,10 +89,10 @@ class DashboardPage(ctk.CTkFrame):
         )
 
         self.actions.grid(
-            row=1,
+            row=2,
             column=0,
             sticky="nsew",
-            pady=(10, 0)
+            pady=(8, 0)
         )
 
     def load_data(
@@ -92,6 +103,7 @@ class DashboardPage(ctk.CTkFrame):
         critical=0,
         recent=None,
         stock=None,
+        quality=None,
     ):
 
         self.cards.update_cards(
@@ -107,4 +119,13 @@ class DashboardPage(ctk.CTkFrame):
 
         self.stock.load(
             stock or []
+        )
+
+        quality = quality or {}
+
+        self.quality.load(
+            acik=quality.get("acik", 0),
+            kritik=quality.get("kritik", 0),
+            geciken=quality.get("geciken", 0),
+            rows=quality.get("alerts", []),
         )
