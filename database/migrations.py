@@ -3,7 +3,164 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 3
+LATEST_SCHEMA_VERSION = 4
+
+
+QUALITY_CAPA_SCHEMA_SQL = """
+    CREATE TABLE IF NOT EXISTS kalite_uygunsuzluklari (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kayit_no TEXT NOT NULL UNIQUE,
+        kayit_tarihi TEXT NOT NULL,
+        tespit_tarihi TEXT NOT NULL,
+        kaynak_turu TEXT NOT NULL CHECK(
+            kaynak_turu IN (
+                'DEPO_KABUL',
+                'URETIM',
+                'PAKETLEME',
+                'SEVKIYAT',
+                'TEMIZLIK',
+                'MUSTERI_SIKAYETI',
+                'TEDARIKCI',
+                'DIGER'
+            )
+        ),
+        kategori TEXT NOT NULL,
+        baslik TEXT NOT NULL,
+        aciklama TEXT NOT NULL,
+        onem_derecesi TEXT NOT NULL CHECK(
+            onem_derecesi IN (
+                'DUSUK',
+                'ORTA',
+                'YUKSEK',
+                'KRITIK'
+            )
+        ),
+        durum TEXT NOT NULL DEFAULT 'ACIK' CHECK(
+            durum IN (
+                'ACIK',
+                'INCELEMEDE',
+                'AKSIYONDA',
+                'DOGRULAMADA',
+                'KAPALI',
+                'IPTAL'
+            )
+        ),
+        depo_kabul_id INTEGER,
+        uretim_id INTEGER,
+        paketleme_id INTEGER,
+        sevkiyat_id INTEGER,
+        tedarikci_id INTEGER,
+        musteri_id INTEGER,
+        bildiren_personel_id INTEGER,
+        sorumlu_personel_id INTEGER,
+        hedef_tarih TEXT,
+        anlik_aksiyon TEXT,
+        kok_neden TEXT,
+        kapatma_tarihi TEXT,
+        kapanis_aciklamasi TEXT,
+        kayit_zamani TEXT NOT NULL,
+        guncelleme_zamani TEXT NOT NULL,
+        FOREIGN KEY (depo_kabul_id)
+            REFERENCES depo_kabul(id),
+        FOREIGN KEY (uretim_id)
+            REFERENCES uretim(id),
+        FOREIGN KEY (paketleme_id)
+            REFERENCES paketleme(id),
+        FOREIGN KEY (sevkiyat_id)
+            REFERENCES sevkiyat(id),
+        FOREIGN KEY (tedarikci_id)
+            REFERENCES tedarikciler(id),
+        FOREIGN KEY (musteri_id)
+            REFERENCES musteriler(id),
+        FOREIGN KEY (bildiren_personel_id)
+            REFERENCES personeller(id),
+        FOREIGN KEY (sorumlu_personel_id)
+            REFERENCES personeller(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS kalite_capa_faaliyetleri (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uygunsuzluk_id INTEGER NOT NULL,
+        faaliyet_turu TEXT NOT NULL CHECK(
+            faaliyet_turu IN (
+                'DUZELTME',
+                'DUZELTICI',
+                'ONLEYICI'
+            )
+        ),
+        aciklama TEXT NOT NULL,
+        sorumlu_personel_id INTEGER NOT NULL,
+        hedef_tarih TEXT NOT NULL,
+        durum TEXT NOT NULL DEFAULT 'ACIK' CHECK(
+            durum IN (
+                'ACIK',
+                'DEVAM_EDIYOR',
+                'TAMAMLANDI',
+                'IPTAL'
+            )
+        ),
+        tamamlanma_tarihi TEXT,
+        tamamlanma_aciklamasi TEXT,
+        etkinlik_durumu TEXT CHECK(
+            etkinlik_durumu IN (
+                'BEKLIYOR',
+                'ETKILI',
+                'ETKISIZ'
+            )
+        ),
+        etkinlik_aciklamasi TEXT,
+        dogrulayan_personel_id INTEGER,
+        dogrulama_tarihi TEXT,
+        kayit_zamani TEXT NOT NULL,
+        guncelleme_zamani TEXT NOT NULL,
+        FOREIGN KEY (uygunsuzluk_id)
+            REFERENCES kalite_uygunsuzluklari(id)
+            ON DELETE RESTRICT,
+        FOREIGN KEY (sorumlu_personel_id)
+            REFERENCES personeller(id),
+        FOREIGN KEY (dogrulayan_personel_id)
+            REFERENCES personeller(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS
+    idx_kalite_uygunsuzluk_durum
+    ON kalite_uygunsuzluklari (
+        durum,
+        onem_derecesi
+    );
+
+    CREATE INDEX IF NOT EXISTS
+    idx_kalite_uygunsuzluk_hedef
+    ON kalite_uygunsuzluklari (
+        hedef_tarih,
+        durum
+    );
+
+    CREATE INDEX IF NOT EXISTS
+    idx_kalite_uygunsuzluk_kaynak
+    ON kalite_uygunsuzluklari (
+        kaynak_turu,
+        depo_kabul_id,
+        uretim_id,
+        paketleme_id,
+        sevkiyat_id
+    );
+
+    CREATE INDEX IF NOT EXISTS
+    idx_kalite_capa_uygunsuzluk
+    ON kalite_capa_faaliyetleri (
+        uygunsuzluk_id,
+        durum
+    );
+
+    CREATE INDEX IF NOT EXISTS
+    idx_kalite_capa_hedef
+    ON kalite_capa_faaliyetleri (
+        hedef_tarih,
+        durum
+    );
+"""
+
 
 MAMUL_MOVEMENT_TYPES = (
     "PAKETLEME",
@@ -203,6 +360,13 @@ def _migration_3_packaging_contract(conn):
         )
 
 
+
+def _migration_4_quality_capa_foundation(conn):
+    conn.executescript(
+        QUALITY_CAPA_SCHEMA_SQL
+    )
+
+
 MIGRATIONS = (
     (
         1,
@@ -218,6 +382,11 @@ MIGRATIONS = (
         3,
         "packaging_table_contract",
         _migration_3_packaging_contract,
+    ),
+    (
+        4,
+        "quality_capa_foundation",
+        _migration_4_quality_capa_foundation,
     ),
 )
 

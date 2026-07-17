@@ -391,6 +391,7 @@ class SystemPage:
                 "PAKETLEME",
                 "SEVKIYAT",
                 "TEMIZLIK",
+                "KALITE",
                 "RECETE",
                 "PERSONEL",
                 "SISTEM",

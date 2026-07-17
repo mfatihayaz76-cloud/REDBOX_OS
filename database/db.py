@@ -2,7 +2,10 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 
-from database.migrations import run_migrations
+from database.migrations import (
+    QUALITY_CAPA_SCHEMA_SQL,
+    run_migrations,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "database" / "redbox_os.db"
@@ -610,6 +613,10 @@ def init_database():
             ADD COLUMN tedarikci_id INTEGER
             REFERENCES tedarikciler(id)
         """)
+
+    conn.executescript(
+        QUALITY_CAPA_SCHEMA_SQL
+    )
 
     conn.commit()
     conn.close()

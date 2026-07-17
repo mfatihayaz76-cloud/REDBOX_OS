@@ -41,6 +41,7 @@ from database.cleaning_engine import (
     complete_cleaning_task,
 )
 from ui.system import SystemPage
+from ui.quality import QualityPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.controllers.dashboard_controller import DashboardController
 from ui.order_calculator import OrderCalculatorWindow
@@ -88,7 +89,7 @@ class RedboxOS(ctk.CTk):
             column=0,
             sticky="nsew"
         )
-        self.sidebar.grid_rowconfigure(13, weight=1)
+        self.sidebar.grid_rowconfigure(14, weight=1)
 
         ctk.CTkLabel(
             self.sidebar,
@@ -111,6 +112,7 @@ class RedboxOS(ctk.CTk):
             ("SEVKİYAT", self.sevkiyat),
             ("SEVKİYAT RAPORU", self.sevkiyat_raporu),
             ("İZLENEBİLİRLİK", self.izlenebilirlik),
+            ("KALİTE / CAPA", self.kalite),
             *(
                 [("REÇETE", self.recete)]
                 if self.formul_yetkili
@@ -138,7 +140,7 @@ class RedboxOS(ctk.CTk):
             font=("Arial", 11, "bold"),
             text_color="#22C55E",
         ).grid(
-            row=14,
+            row=15,
             column=0,
             padx=20,
             pady=(12, 2),
@@ -149,7 +151,7 @@ class RedboxOS(ctk.CTk):
             text="REDBOX OS • ÇEKİRDEK v0.3",
             font=("Arial", 11)
         ).grid(
-            row=15,
+            row=16,
             column=0,
             padx=20,
             pady=(2, 16),
@@ -11789,6 +11791,9 @@ class RedboxOS(ctk.CTk):
             column=0,
             sticky="ew",
         )
+
+    def kalite(self):
+        QualityPage(self).create()
 
     def sistem(self):
         SystemPage(self).create()
