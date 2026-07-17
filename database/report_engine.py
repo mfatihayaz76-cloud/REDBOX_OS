@@ -1,4 +1,8 @@
 from database.cleaning_engine import get_cleaning_report_dataset
+from database.quality_engine import (
+    capa_faaliyetlerini_getir,
+    uygunsuzluklari_getir,
+)
 from database.finished_stock_engine import mamul_stok_ozeti
 from database.raw_material_stock_engine import (
     hammadde_stok_ozeti,
@@ -2336,6 +2340,237 @@ def temizlik_pdf_olustur(
     return dosya
 
 
+
+
+def kalite_capa_pdf_olustur(
+    conn,
+    *,
+    arama=None,
+    durum=None,
+    onem_derecesi=None,
+):
+    rows = uygunsuzluklari_getir(
+        conn,
+        arama=arama,
+        durum=durum,
+        onem_derecesi=onem_derecesi,
+        limit=5000,
+    )
+
+    if not rows:
+        raise ValueError(
+            "Seçilen filtreler için Kalite/CAPA kaydı bulunamadı."
+        )
+
+    dosya = pdf_yolu(
+        "KALITE_CAPA",
+        datetime.now().strftime("%Y%m%d_%H%M%S"),
+    )
+    doc = pdf_dokuman_olustur(dosya)
+    story = []
+
+    pdf_rapor_basligi(
+        story,
+        "KALİTE VE CAPA RAPORU",
+        datetime.now().strftime("%d.%m.%Y %H:%M"),
+    )
+
+    acik_durumlar = {
+        "ACIK",
+        "INCELEMEDE",
+        "AKSIYONDA",
+        "DOGRULAMADA",
+    }
+    bugun = datetime.now().date()
+
+    acik = sum(
+        1
+        for row in rows
+        if row["durum"] in acik_durumlar
+    )
+    kritik = sum(
+        1
+        for row in rows
+        if row["onem_derecesi"] == "KRITIK"
+        and row["durum"] in acik_durumlar
+    )
+
+    geciken = 0
+
+    for row in rows:
+        if (
+            row["hedef_tarih"]
+            and row["durum"] in acik_durumlar
+        ):
+            hedef = datetime.strptime(
+                row["hedef_tarih"],
+                "%d.%m.%Y",
+            ).date()
+
+            if hedef < bugun:
+                geciken += 1
+
+    pdf_bolum_basligi(
+        story,
+        "Rapor Özeti",
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Toplam Uygunsuzluk",
+        len(rows),
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Açık Kayıt",
+        acik,
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Kritik Açık Kayıt",
+        kritik,
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Geciken Kayıt",
+        geciken,
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Durum Filtresi",
+        durum or "TÜM DURUMLAR",
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Önem Filtresi",
+        onem_derecesi or "TÜM ÖNEMLER",
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Arama Filtresi",
+        arama or "-",
+    )
+
+    pdf_bolum_basligi(
+        story,
+        "Uygunsuzluk Kayıtları",
+    )
+
+    kalite_satirlari = [
+        [
+            row["kayit_no"],
+            row["tespit_tarihi"],
+            row["kaynak_turu"],
+            row["kategori"],
+            row["baslik"],
+            row["onem_derecesi"],
+            row["durum"],
+            row["sorumlu_personel"] or "-",
+            row["hedef_tarih"] or "-",
+            row["acik_capa"],
+        ]
+        for row in rows
+    ]
+
+    pdf_tablo(
+        story,
+        [
+            "Kayıt No",
+            "Tespit",
+            "Kaynak",
+            "Kategori",
+            "Başlık",
+            "Önem",
+            "Durum",
+            "Sorumlu",
+            "Hedef",
+            "Açık CAPA",
+        ],
+        kalite_satirlari,
+        [
+            58,
+            48,
+            58,
+            55,
+            92,
+            45,
+            58,
+            62,
+            48,
+            42,
+        ],
+    )
+
+    pdf_bolum_basligi(
+        story,
+        "CAPA Faaliyetleri",
+    )
+
+    capa_satirlari = []
+
+    for row in rows:
+        faaliyetler = capa_faaliyetlerini_getir(
+            conn,
+            row["id"],
+        )
+
+        for faaliyet in faaliyetler:
+            capa_satirlari.append(
+                [
+                    row["kayit_no"],
+                    faaliyet["faaliyet_turu"],
+                    faaliyet["aciklama"],
+                    faaliyet["sorumlu_personel"],
+                    faaliyet["hedef_tarih"],
+                    faaliyet["durum"],
+                    faaliyet["tamamlanma_tarihi"] or "-",
+                    faaliyet["etkinlik_durumu"] or "BEKLIYOR",
+                    faaliyet["dogrulayan_personel"] or "-",
+                    faaliyet["dogrulama_tarihi"] or "-",
+                ]
+            )
+
+    if capa_satirlari:
+        pdf_tablo(
+            story,
+            [
+                "Kayıt No",
+                "Tür",
+                "Faaliyet",
+                "Sorumlu",
+                "Hedef",
+                "Durum",
+                "Tamamlanma",
+                "Etkinlik",
+                "Doğrulayan",
+                "Doğrulama",
+            ],
+            capa_satirlari,
+            [
+                55,
+                50,
+                100,
+                62,
+                48,
+                55,
+                55,
+                52,
+                62,
+                55,
+            ],
+        )
+    else:
+        pdf_bilgi_satiri(
+            story,
+            "CAPA Kaydı",
+            "Rapor kapsamındaki uygunsuzluklar için CAPA kaydı yok.",
+        )
+
+    pdf_build(
+        doc,
+        story,
+    )
+
+    return dosya
 
 def siparis_hesaplama_pdf_olustur(plan):
     dosya = pdf_yolu("SIPARIS_HESAPLAMA")
