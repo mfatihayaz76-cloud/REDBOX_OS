@@ -1,9 +1,11 @@
 from datetime import datetime
+import subprocess
 from tkinter import messagebox, ttk
 
 import customtkinter as ctk
 
 from database.db import get_connection
+from database.report_engine import kalite_capa_pdf_olustur
 from database.quality_engine import (
     capa_durum_guncelle,
     capa_etkinlik_dogrula,
@@ -234,9 +236,67 @@ class QualityPage:
         ).grid(
             row=0,
             column=4,
+            padx=7,
+            pady=12,
+        )
+
+        ctk.CTkButton(
+            toolbar,
+            text="PDF RAPORU",
+            width=115,
+            height=40,
+            fg_color="#DC2626",
+            command=self.create_pdf,
+        ).grid(
+            row=0,
+            column=5,
             padx=(7, 14),
             pady=12,
         )
+
+
+    def create_pdf(self):
+        arama = self.search_entry.get().strip() or None
+        durum = self.status_filter.get()
+
+        if durum == "TÜM DURUMLAR":
+            durum = None
+
+        onem_derecesi = self.severity_filter.get()
+
+        if onem_derecesi == "TÜM ÖNEMLER":
+            onem_derecesi = None
+
+        conn = get_connection()
+
+        try:
+            pdf = kalite_capa_pdf_olustur(
+                conn,
+                arama=arama,
+                durum=durum,
+                onem_derecesi=onem_derecesi,
+            )
+
+            subprocess.run(
+                ["open", "-R", str(pdf.resolve())],
+                check=False,
+            )
+
+            messagebox.showinfo(
+                "REDBOX OS",
+                (
+                    "Kalite/CAPA PDF raporu oluşturuldu.\n\n"
+                    f"Dosya:\n{pdf}"
+                ),
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Kalite/CAPA PDF Hatası",
+                str(error),
+            )
+        finally:
+            conn.close()
+
 
     def _tree_style(self):
         style = ttk.Style()
