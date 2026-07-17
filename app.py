@@ -295,6 +295,7 @@ class RedboxOS(ctk.CTk):
                 ("DEPO KABUL", self.depo_kabul),
                 ("YENİ ÜRETİM", self.uretim),
                 ("SİPARİŞ HESAPLA", self.siparis_hesapla),
+                ("KALİTE / CAPA", self.kalite),
             ],
         )
         dashboard.pack(
@@ -345,6 +346,7 @@ class RedboxOS(ctk.CTk):
             critical=len(critical_stock),
             recent=recent[:12],
             stock=critical_stock,
+            quality=data.get("quality", {}),
         )
 
     def uretim_kutle_dengesi_getir(

@@ -2,6 +2,7 @@ from ui.services.dashboard_service import DashboardService
 from ui.services.production_service import ProductionService
 from ui.services.stock_service import StockService
 from ui.services.shipment_service import ShipmentService
+from ui.services.quality_service import QualityService
 
 
 class DashboardController:
@@ -12,8 +13,11 @@ class DashboardController:
         self.production = ProductionService()
         self.stock = StockService()
         self.shipment = ShipmentService()
+        self.quality = QualityService()
 
     def load(self):
+
+        quality = self.quality.dashboard_verisi()
 
         return {
             "production": self.dashboard.toplam_uretim(),
@@ -23,4 +27,5 @@ class DashboardController:
             "recent_production": self.production.son_uretimler(),
             "recent_shipment": self.shipment.son_sevkiyatlar(),
             "critical_stock": self.stock.kritik_stoklar(),
+            "quality": quality,
         }
