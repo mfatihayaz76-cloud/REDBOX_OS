@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 4
+LATEST_SCHEMA_VERSION = 5
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -361,6 +361,63 @@ def _migration_3_packaging_contract(conn):
 
 
 
+
+def _migration_5_multi_product_foundation(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS urunler (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            urun_kodu TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            urun_adi TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            kategori TEXT,
+            barkod TEXT UNIQUE,
+            birim TEXT NOT NULL DEFAULT 'KG',
+            raf_omru_gun INTEGER,
+            saklama_sicakligi TEXT,
+            aktif INTEGER NOT NULL DEFAULT 1 CHECK(
+                aktif IN (0, 1)
+            ),
+            aciklama TEXT,
+            kayit_zamani TEXT NOT NULL
+        )
+    """)
+
+    long_potato_exists = conn.execute("""
+        SELECT id
+        FROM urunler
+        WHERE urun_kodu = ?
+        LIMIT 1
+    """, (
+        "LP001",
+    )).fetchone()
+
+    if long_potato_exists is None:
+        conn.execute("""
+            INSERT INTO urunler (
+                urun_kodu,
+                urun_adi,
+                kategori,
+                birim,
+                saklama_sicakligi,
+                aktif,
+                aciklama,
+                kayit_zamani
+            )
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+        """, (
+            "LP001",
+            "Long Potato",
+            "Dondurulmuş Patates Ürünü",
+            "KG",
+            "-18°C",
+            (
+                "REDBOX OS çok ürün altyapısı başlangıç "
+                "ürünü"
+            ),
+            datetime.now().strftime(
+                "%d.%m.%Y %H:%M:%S"
+            ),
+        ))
+
 def _migration_4_quality_capa_foundation(conn):
     conn.executescript(
         QUALITY_CAPA_SCHEMA_SQL
@@ -387,6 +444,11 @@ MIGRATIONS = (
         4,
         "quality_capa_foundation",
         _migration_4_quality_capa_foundation,
+    ),
+    (
+        5,
+        "multi_product_foundation",
+        _migration_5_multi_product_foundation,
     ),
 )
 
