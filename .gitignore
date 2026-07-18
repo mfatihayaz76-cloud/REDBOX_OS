@@ -26,3 +26,10 @@ exports/
 app_before_reverse_trace.py
 app.py.*.bak
 app.py.*_backup
+
+# REDBOX OS local development artifacts
+/backups/
+/patch_*.py
+/app_sprint22_baseline.py
+/refactor/tools/
+/database/redbox_os_before_patch_*.db
