@@ -1,4 +1,7 @@
+import os
+import shutil
 import sqlite3
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -7,8 +10,81 @@ from database.migrations import (
     run_migrations,
 )
 
+
+APP_NAME = "REDBOX_OS"
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "database" / "redbox_os.db"
+
+
+def _packaged_resource_path(*parts):
+    bundle_dir = Path(
+        getattr(
+            sys,
+            "_MEIPASS",
+            BASE_DIR,
+        )
+    )
+    return bundle_dir.joinpath(*parts)
+
+
+def _application_data_dir():
+    if not getattr(sys, "frozen", False):
+        return BASE_DIR / "database"
+
+    if sys.platform == "darwin":
+        return (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / APP_NAME
+        )
+
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            return Path(local_app_data) / APP_NAME
+
+        return (
+            Path.home()
+            / "AppData"
+            / "Local"
+            / APP_NAME
+        )
+
+    xdg_data_home = os.environ.get("XDG_DATA_HOME")
+    if xdg_data_home:
+        return Path(xdg_data_home) / APP_NAME
+
+    return (
+        Path.home()
+        / ".local"
+        / "share"
+        / APP_NAME
+    )
+
+
+DATA_DIR = _application_data_dir()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DB_PATH = DATA_DIR / "redbox_os.db"
+
+
+def _prepare_packaged_database():
+    if not getattr(sys, "frozen", False):
+        return
+
+    if DB_PATH.exists():
+        return
+
+    packaged_db = _packaged_resource_path(
+        "database",
+        "redbox_os.db",
+    )
+
+    if packaged_db.exists():
+        shutil.copy2(packaged_db, DB_PATH)
+
+
+_prepare_packaged_database()
 
 
 def get_connection():
