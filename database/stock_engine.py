@@ -1,14 +1,26 @@
 from database.db import get_connection
 
 
-def aktif_recete_getir(conn):
-    recete = conn.execute("""
-        SELECT id, ad, parti_teorik_kg
-        FROM receteler
-        WHERE aktif = 1
-        ORDER BY id DESC
-        LIMIT 1
-    """).fetchone()
+def aktif_recete_getir(conn, urun_id=None):
+    if urun_id is None:
+        recete = conn.execute("""
+            SELECT id, ad, parti_teorik_kg, urun_id
+            FROM receteler
+            WHERE aktif = 1
+            ORDER BY id DESC
+            LIMIT 1
+        """).fetchone()
+    else:
+        recete = conn.execute("""
+            SELECT id, ad, parti_teorik_kg, urun_id
+            FROM receteler
+            WHERE aktif = 1
+              AND urun_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+        """, (
+            int(urun_id),
+        )).fetchone()
 
     if recete is None:
         raise ValueError("Aktif üretim reçetesi bulunamadı.")
@@ -174,8 +186,15 @@ def fifo_lot_tuket(conn, uretim_id, recete_id, parti_sayisi):
                 break
 
 
-def lot_parti_plani_oner(conn, parti_sayisi):
-    recete = aktif_recete_getir(conn)
+def lot_parti_plani_oner(
+    conn,
+    parti_sayisi,
+    urun_id=None
+):
+    recete = aktif_recete_getir(
+        conn,
+        urun_id=urun_id
+    )
     plan = []
 
     for ihtiyac in recete_ihtiyaclari_getir(
@@ -528,9 +547,13 @@ def uretim_stok_isle(
     conn,
     uretim_id,
     parti_sayisi,
-    lot_parti_plani=None
+    lot_parti_plani=None,
+    urun_id=None
 ):
-    recete = aktif_recete_getir(conn)
+    recete = aktif_recete_getir(
+        conn,
+        urun_id=urun_id
+    )
 
     if lot_parti_plani is None:
         fifo_lot_tuket(

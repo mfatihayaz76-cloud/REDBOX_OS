@@ -345,8 +345,8 @@ def init_database():
         );
 
         CREATE UNIQUE INDEX IF NOT EXISTS
-        ux_receteler_tek_aktif
-        ON receteler(aktif)
+        ux_receteler_urun_aktif
+        ON receteler(urun_id)
         WHERE aktif = 1;
 
         CREATE TABLE IF NOT EXISTS recete_kalemleri (

@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 7
+LATEST_SCHEMA_VERSION = 8
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -636,6 +636,47 @@ def _migration_4_quality_capa_foundation(conn):
     )
 
 
+def _migration_8_product_recipe_active_contract(conn):
+    missing_product_links = conn.execute("""
+        SELECT COUNT(*)
+        FROM receteler
+        WHERE urun_id IS NULL
+    """).fetchone()[0]
+
+    if missing_product_links:
+        raise RuntimeError(
+            "Migration 8: ürünsüz reçete kaydı bulundu."
+        )
+
+    duplicate_active_products = conn.execute("""
+        SELECT
+            urun_id,
+            COUNT(*)
+        FROM receteler
+        WHERE aktif = 1
+        GROUP BY urun_id
+        HAVING COUNT(*) > 1
+    """).fetchall()
+
+    if duplicate_active_products:
+        raise RuntimeError(
+            "Migration 8: aynı ürüne bağlı birden fazla "
+            "aktif reçete bulundu."
+        )
+
+    conn.execute("""
+        DROP INDEX IF EXISTS
+        ux_receteler_tek_aktif
+    """)
+
+    conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        ux_receteler_urun_aktif
+        ON receteler(urun_id)
+        WHERE aktif = 1
+    """)
+
+
 MIGRATIONS = (
     (
         1,
@@ -671,6 +712,11 @@ MIGRATIONS = (
         7,
         "packaging_shipment_product_links",
         _migration_7_packaging_shipment_product_links,
+    ),
+    (
+        8,
+        "product_recipe_active_contract",
+        _migration_8_product_recipe_active_contract,
     ),
 )
 
