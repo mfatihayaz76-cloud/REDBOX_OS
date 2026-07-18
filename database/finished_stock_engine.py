@@ -12,6 +12,7 @@ def mamul_stok_lotlari(conn=None):
         return conn.execute("""
             SELECT
                 u.id AS uretim_id,
+                u.urun_id,
                 u.urun_lot_no,
                 p.ambalaj_gram,
                 p.koli_ici_adet,
@@ -53,6 +54,7 @@ def mamul_stok_lotlari(conn=None):
               ON u.id = p.uretim_id
             GROUP BY
                 u.id,
+                u.urun_id,
                 u.urun_lot_no,
                 p.ambalaj_gram,
                 p.koli_ici_adet
@@ -103,6 +105,7 @@ def mamul_stok_ozeti(conn=None):
 
         sonuc.append({
             "uretim_id": row["uretim_id"],
+            "urun_id": row["urun_id"],
             "urun_lot_no": row["urun_lot_no"],
             "ambalaj_gram": ambalaj_gram,
             "koli_ici_adet": koli_ici,

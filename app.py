@@ -44,6 +44,7 @@ from ui.system import SystemPage
 from ui.quality import QualityPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.controllers.dashboard_controller import DashboardController
+from ui.services.product_service import ProductService
 from ui.order_calculator import OrderCalculatorWindow
 from ui.login import authenticate_user
 
@@ -351,7 +352,8 @@ class RedboxOS(ctk.CTk):
 
     def uretim_kutle_dengesi_getir(
         self,
-        parti_sayisi
+        parti_sayisi,
+        urun_id
     ):
         conn = get_connection()
 
@@ -364,9 +366,12 @@ class RedboxOS(ctk.CTk):
                     gecerlilik_tarihi
                 FROM receteler
                 WHERE aktif = 1
+                  AND urun_id = ?
                 ORDER BY id
                 LIMIT 1
-            """).fetchone()
+            """, (
+                int(urun_id),
+            )).fetchone()
 
             if recete is None:
                 raise ValueError(
@@ -2283,6 +2288,39 @@ class RedboxOS(ctk.CTk):
             font=("Arial", 18, "bold")
         ).pack(pady=(20, 15))
 
+        self.uretim_urun_map = (
+            ProductService().aktif_urun_map()
+        )
+
+        if not self.uretim_urun_map:
+            raise ValueError(
+                "Aktif ürün bulunamadı."
+            )
+
+        ctk.CTkLabel(
+            form,
+            text="Ürün",
+            width=350,
+            anchor="w",
+            font=("Arial", 12, "bold"),
+        ).pack(
+            pady=(5, 2),
+        )
+
+        self.uretim_urun_secim = ctk.CTkComboBox(
+            form,
+            values=list(self.uretim_urun_map.keys()),
+            width=350,
+            state="readonly",
+            command=lambda _secim: self.uretim_hesapla(),
+        )
+        self.uretim_urun_secim.pack(
+            pady=(0, 5),
+        )
+        self.uretim_urun_secim.set(
+            next(iter(self.uretim_urun_map))
+        )
+
         self.uretim_tarihi = self.form_entry(
             form,
             "Üretim Tarihi",
@@ -2754,6 +2792,22 @@ class RedboxOS(ctk.CTk):
         self.uretim_ozet_guncelle()
         self.uretim_listele()
 
+    def uretim_urun_id_getir(self):
+        secim = (
+            self.uretim_urun_secim
+            .get()
+            .strip()
+        )
+
+        if secim not in self.uretim_urun_map:
+            raise ValueError(
+                "Geçerli ürün seçilmelidir."
+            )
+
+        return int(
+            self.uretim_urun_map[secim]
+        )
+
     def uretim_lot_plani_hazirla(self):
         try:
             parti_text = (
@@ -2777,9 +2831,12 @@ class RedboxOS(ctk.CTk):
             conn = get_connection()
 
             try:
+                urun_id = self.uretim_urun_id_getir()
+
                 plan = lot_parti_plani_oner(
                     conn,
-                    parti
+                    parti,
+                    urun_id=urun_id,
                 )
 
                 lot_rows = conn.execute("""
@@ -3039,9 +3096,12 @@ class RedboxOS(ctk.CTk):
                     "Üretim firesi negatif olamaz."
                 )
 
+            urun_id = self.uretim_urun_id_getir()
+
             denge = (
                 self.uretim_kutle_dengesi_getir(
-                    parti
+                    parti,
+                    urun_id,
                 )
             )
 
@@ -3125,6 +3185,7 @@ class RedboxOS(ctk.CTk):
             parti_text = self.parti_sayisi.get().strip()
             fire_text = self.uretim_firesi.get().strip().replace(",", ".")
             aciklama = self.uretim_aciklama.get().strip()
+            urun_id = self.uretim_urun_id_getir()
 
             personel_1 = (
                 self.uretim_personel_1
@@ -3195,9 +3256,12 @@ class RedboxOS(ctk.CTk):
                     SELECT parti_teorik_kg
                     FROM receteler
                     WHERE aktif = 1
+                      AND urun_id = ?
                     ORDER BY id DESC
                     LIMIT 1
-                """).fetchone()
+                """, (
+                    urun_id,
+                )).fetchone()
             finally:
                 conn_recete.close()
 
@@ -3232,9 +3296,10 @@ class RedboxOS(ctk.CTk):
                         personel_1,
                         personel_2,
                         aciklama,
-                        kayit_zamani
+                        kayit_zamani,
+                        urun_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     tarih,
                     baslama_saati,
@@ -3248,7 +3313,8 @@ class RedboxOS(ctk.CTk):
                     personel_1,
                     personel_2,
                     aciklama,
-                    datetime.now().isoformat(timespec="seconds")
+                    datetime.now().isoformat(timespec="seconds"),
+                    urun_id,
                 ))
 
                 uretim_id = cursor.lastrowid
@@ -3261,7 +3327,8 @@ class RedboxOS(ctk.CTk):
                     conn,
                     uretim_id,
                     parti,
-                    lot_parti_plani=lot_parti_plani
+                    lot_parti_plani=lot_parti_plani,
+                    urun_id=urun_id,
                 )
 
                 denetim_kaydi_ekle(
@@ -3282,6 +3349,7 @@ class RedboxOS(ctk.CTk):
                         "uretim_suresi_dakika": (
                             uretim_suresi_dakika
                         ),
+                        "urun_id": urun_id,
                         "urun_lot_no": lot_no,
                         "parti_sayisi": parti,
                         "teorik_uretim_kg": teorik,
@@ -4330,6 +4398,7 @@ class RedboxOS(ctk.CTk):
                 sonuc = conn.execute("""
                     SELECT
                         u.net_uretim_kg,
+                        u.urun_id,
                         COALESCE(
                             SUM(p.paketlenen_kg),
                             0
@@ -4344,13 +4413,21 @@ class RedboxOS(ctk.CTk):
                     WHERE u.id = ?
                     GROUP BY
                         u.id,
-                        u.net_uretim_kg
+                        u.net_uretim_kg,
+                        u.urun_id
                 """, (uretim_id,)).fetchone()
 
                 if sonuc is None:
                     raise ValueError(
                         "Üretim lotu bulunamadı."
                     )
+
+                if sonuc["urun_id"] is None:
+                    raise ValueError(
+                        "Seçilen üretim lotunda ürün bilgisi yok."
+                    )
+
+                urun_id = int(sonuc["urun_id"])
 
                 kalan = (
                     float(sonuc["net_uretim_kg"])
@@ -4374,6 +4451,7 @@ class RedboxOS(ctk.CTk):
                         bitis_saati,
                         paketleme_suresi_dakika,
                         uretim_id,
+                        urun_id,
                         ambalaj_gram,
                         paket_adedi,
                         koli_ici_adet,
@@ -4382,13 +4460,14 @@ class RedboxOS(ctk.CTk):
                         aciklama,
                         kayit_zamani
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     tarih,
                     baslama_saati,
                     bitis_saati,
                     paketleme_suresi_dakika,
                     uretim_id,
+                    urun_id,
                     ambalaj_gram,
                     adet,
                     koli_ici,
@@ -4432,6 +4511,7 @@ class RedboxOS(ctk.CTk):
                             paketleme_suresi_dakika
                         ),
                         "uretim_id": uretim_id,
+                        "urun_id": urun_id,
                         "urun_lotu": lot_secim,
                         "ambalaj_gram": ambalaj_gram,
                         "paket_adedi": adet,
@@ -5264,6 +5344,13 @@ class RedboxOS(ctk.CTk):
 
             stok = self.sevkiyat_stok_map[secim]
 
+            if stok.get("urun_id") is None:
+                raise ValueError(
+                    "Seçilen mamul stokta ürün bilgisi yok."
+                )
+
+            urun_id = int(stok["urun_id"])
+
             koli_ici = stok["koli_ici_adet"]
 
             if koli > 0 and koli_ici <= 0:
@@ -5334,11 +5421,12 @@ class RedboxOS(ctk.CTk):
                         belge_no,
                         sevk_koli_adedi,
                         sevk_acik_paket_adedi,
+                        urun_id,
                         soguk_zincir,
                         aciklama,
                         kayit_zamani
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     tarih,
                     musteri,
@@ -5347,6 +5435,7 @@ class RedboxOS(ctk.CTk):
                     belge_no,
                     koli,
                     acik,
+                    urun_id,
                     soguk_zincir,
                     aciklama,
                     datetime.now().isoformat(
@@ -5391,6 +5480,7 @@ class RedboxOS(ctk.CTk):
                         "arac_plaka": plaka,
                         "belge_no": belge_no,
                         "uretim_id": stok["uretim_id"],
+                        "urun_id": urun_id,
                         "ambalaj_gram": (
                             stok["ambalaj_gram"]
                         ),
