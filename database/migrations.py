@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 6
+LATEST_SCHEMA_VERSION = 7
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -524,6 +524,112 @@ def _migration_6_recipe_production_product_links(conn):
         ON uretim(urun_id)
     """)
 
+
+def _migration_7_packaging_shipment_product_links(conn):
+    product_row = conn.execute("""
+        SELECT id
+        FROM urunler
+        WHERE urun_kodu = ?
+        LIMIT 1
+    """, (
+        "LP001",
+    )).fetchone()
+
+    if product_row is None:
+        raise RuntimeError(
+            "Migration 7: LP001 Long Potato ürünü bulunamadı."
+        )
+
+    long_potato_id = product_row[0]
+
+    packaging_columns = {
+        row[1]
+        for row in conn.execute(
+            "PRAGMA table_info(paketleme)"
+        ).fetchall()
+    }
+
+    if not packaging_columns:
+        raise RuntimeError(
+            "Migration 7: paketleme tablosu bulunamadı."
+        )
+
+    if "urun_id" not in packaging_columns:
+        conn.execute("""
+            ALTER TABLE paketleme
+            ADD COLUMN urun_id INTEGER
+            REFERENCES urunler(id)
+        """)
+
+    conn.execute("""
+        UPDATE paketleme
+        SET urun_id = ?
+        WHERE urun_id IS NULL
+    """, (
+        long_potato_id,
+    ))
+
+    shipment_columns = {
+        row[1]
+        for row in conn.execute(
+            "PRAGMA table_info(sevkiyat)"
+        ).fetchall()
+    }
+
+    if not shipment_columns:
+        raise RuntimeError(
+            "Migration 7: sevkiyat tablosu bulunamadı."
+        )
+
+    if "urun_id" not in shipment_columns:
+        conn.execute("""
+            ALTER TABLE sevkiyat
+            ADD COLUMN urun_id INTEGER
+            REFERENCES urunler(id)
+        """)
+
+    conn.execute("""
+        UPDATE sevkiyat
+        SET urun_id = ?
+        WHERE urun_id IS NULL
+    """, (
+        long_potato_id,
+    ))
+
+    missing_packaging_links = conn.execute("""
+        SELECT COUNT(*)
+        FROM paketleme
+        WHERE urun_id IS NULL
+    """).fetchone()[0]
+
+    missing_shipment_links = conn.execute("""
+        SELECT COUNT(*)
+        FROM sevkiyat
+        WHERE urun_id IS NULL
+    """).fetchone()[0]
+
+    if missing_packaging_links:
+        raise RuntimeError(
+            "Migration 7: ürünsüz paketleme kaydı kaldı."
+        )
+
+    if missing_shipment_links:
+        raise RuntimeError(
+            "Migration 7: ürünsüz sevkiyat kaydı kaldı."
+        )
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_paketleme_urun_id
+        ON paketleme(urun_id)
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_sevkiyat_urun_id
+        ON sevkiyat(urun_id)
+    """)
+
 def _migration_4_quality_capa_foundation(conn):
     conn.executescript(
         QUALITY_CAPA_SCHEMA_SQL
@@ -560,6 +666,11 @@ MIGRATIONS = (
         6,
         "recipe_production_product_links",
         _migration_6_recipe_production_product_links,
+    ),
+    (
+        7,
+        "packaging_shipment_product_links",
+        _migration_7_packaging_shipment_product_links,
     ),
 )
 
