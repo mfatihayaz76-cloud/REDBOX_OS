@@ -551,29 +551,14 @@ def _login_process(send_connection):
 
 
 def authenticate_user():
-    context = multiprocessing.get_context("spawn")
-    receive_connection, send_connection = context.Pipe(
-        duplex=False
-    )
-
-    process = context.Process(
-        target=_login_process,
-        args=(send_connection,),
-    )
-    process.start()
-    send_connection.close()
+    window = LoginWindow()
 
     try:
-        current_user = receive_connection.recv()
-    except EOFError:
-        current_user = None
+        window.mainloop()
+        return window.authenticated_user
     finally:
-        receive_connection.close()
-        process.join()
+        try:
+            window.destroy()
+        except Exception:
+            pass
 
-    if process.exitcode != 0:
-        raise RuntimeError(
-            "Giriş ekranı güvenli şekilde başlatılamadı."
-        )
-
-    return current_user
