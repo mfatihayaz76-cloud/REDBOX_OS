@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 5
+LATEST_SCHEMA_VERSION = 6
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -418,6 +418,112 @@ def _migration_5_multi_product_foundation(conn):
             ),
         ))
 
+
+def _migration_6_recipe_production_product_links(conn):
+    product_row = conn.execute("""
+        SELECT id
+        FROM urunler
+        WHERE urun_kodu = ?
+        LIMIT 1
+    """, (
+        "LP001",
+    )).fetchone()
+
+    if product_row is None:
+        raise RuntimeError(
+            "Migration 6: LP001 Long Potato ürünü bulunamadı."
+        )
+
+    long_potato_id = product_row[0]
+
+    recete_columns = {
+        row[1]
+        for row in conn.execute(
+            "PRAGMA table_info(receteler)"
+        ).fetchall()
+    }
+
+    if not recete_columns:
+        raise RuntimeError(
+            "Migration 6: receteler tablosu bulunamadı."
+        )
+
+    if "urun_id" not in recete_columns:
+        conn.execute("""
+            ALTER TABLE receteler
+            ADD COLUMN urun_id INTEGER
+            REFERENCES urunler(id)
+        """)
+
+    conn.execute("""
+        UPDATE receteler
+        SET urun_id = ?
+        WHERE urun_id IS NULL
+    """, (
+        long_potato_id,
+    ))
+
+    production_columns = {
+        row[1]
+        for row in conn.execute(
+            "PRAGMA table_info(uretim)"
+        ).fetchall()
+    }
+
+    if not production_columns:
+        raise RuntimeError(
+            "Migration 6: uretim tablosu bulunamadı."
+        )
+
+    if "urun_id" not in production_columns:
+        conn.execute("""
+            ALTER TABLE uretim
+            ADD COLUMN urun_id INTEGER
+            REFERENCES urunler(id)
+        """)
+
+    conn.execute("""
+        UPDATE uretim
+        SET urun_id = ?
+        WHERE urun_id IS NULL
+    """, (
+        long_potato_id,
+    ))
+
+    missing_recipe_links = conn.execute("""
+        SELECT COUNT(*)
+        FROM receteler
+        WHERE urun_id IS NULL
+    """).fetchone()[0]
+
+    missing_production_links = conn.execute("""
+        SELECT COUNT(*)
+        FROM uretim
+        WHERE urun_id IS NULL
+    """).fetchone()[0]
+
+    if missing_recipe_links:
+        raise RuntimeError(
+            "Migration 6: ürünsüz reçete kaydı kaldı."
+        )
+
+    if missing_production_links:
+        raise RuntimeError(
+            "Migration 6: ürünsüz üretim kaydı kaldı."
+        )
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_receteler_urun_id
+        ON receteler(urun_id)
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_uretim_urun_id
+        ON uretim(urun_id)
+    """)
+
 def _migration_4_quality_capa_foundation(conn):
     conn.executescript(
         QUALITY_CAPA_SCHEMA_SQL
@@ -449,6 +555,11 @@ MIGRATIONS = (
         5,
         "multi_product_foundation",
         _migration_5_multi_product_foundation,
+    ),
+    (
+        6,
+        "recipe_production_product_links",
+        _migration_6_recipe_production_product_links,
     ),
 )
 
