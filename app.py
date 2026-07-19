@@ -46,6 +46,7 @@ from ui.pages.dashboard_page import DashboardPage
 from ui.controllers.dashboard_controller import DashboardController
 from ui.services.product_service import ProductService
 from ui.order_calculator import OrderCalculatorWindow
+from ui.recipe_import import RecipeImportWindow
 from ui.login import authenticate_user
 
 ctk.set_appearance_mode("dark")
@@ -9340,6 +9341,18 @@ class RedboxOS(ctk.CTk):
             self.recete_secili_urun_adi
         )
 
+        ctk.CTkButton(
+            urun_panel,
+            text="TOPLU KATALOG İÇE AKTAR",
+            width=220,
+            height=36,
+            command=self.recete_katalog_import_ac,
+        ).pack(
+            side="right",
+            padx=(10, 18),
+            pady=12,
+        )
+
         conn = get_connection()
         try:
             revizyonlar = conn.execute("""
@@ -10010,6 +10023,17 @@ class RedboxOS(ctk.CTk):
             self.recete_gecmis_tree.focus(
                 str(revizyonlar[0]["id"])
             )
+
+
+    def recete_katalog_import_ac(self):
+        if not self.formul_erisim_kontrolu():
+            return
+
+        RecipeImportWindow(
+            self,
+            current_user=self.current_user,
+            on_success=self.recete,
+        )
 
 
     def recete_hammadde_tanimla(self):

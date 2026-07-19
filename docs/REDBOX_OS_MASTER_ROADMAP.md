@@ -124,9 +124,11 @@ Bu aşamada 60+ reçete henüz canlı sistemde oluşturulmamıştır.
 
 Branch:
 
-`feature/commercial-recipe-catalog`
+`feature/commercial-recipe-import`
 
 ### Sprint CRC-1 — Reçete katalog sözleşmesi
+
+Durum: **TAMAMLANDI**
 
 Amaç:
 
@@ -168,6 +170,8 @@ Gerçek reçete içeriği ve miktarları Fatih Ayaz tarafından sağlanan yetkil
 
 ### Sprint CRC-2 — Toplu ürün/reçete içe aktarma
 
+Durum: **TAMAMLANDI**
+
 - Standart CSV/XLSX şablonu
 - Ürün kartı alanları
 - Reçete başlık alanları
@@ -181,6 +185,8 @@ Gerçek reçete içeriği ve miktarları Fatih Ayaz tarafından sağlanan yetkil
 - Import sonuç özeti
 
 ### Sprint CRC-3 — Reçete merkezi profesyonel ekranı
+
+Durum: **SIRADAKİ SABİT İŞLEM**
 
 - Ürün filtresi
 - Reçete durumu filtresi
@@ -361,6 +367,6 @@ Fatih Ayaz tarafından çalışma sırasında belirtilen yeni fikirler:
 
 ## 10. Sıradaki Kesin İşlem
 
-`CRC-1 — Reçete katalog sözleşmesi`
+`CRC-3 — Reçete merkezi profesyonel ekranı`
 
-Başka modül açılmayacaktır. Önce mevcut reçete/ürün şeması, 60+ katalog ihtiyacı ve import sözleşmesi audit edilecektir.
+Başka modül açılmayacaktır. CRC-1 reçete katalog sözleşmesi ve CRC-2 atomik CSV/XLSX import motoru tamamlanmıştır. Sıradaki çalışma ürün filtreleri, revizyon geçmişi, reçete karşılaştırma, kontrollü onay ve reçete föyü üzerinde yürütülecektir.
