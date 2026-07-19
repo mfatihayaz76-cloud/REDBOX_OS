@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 8
+LATEST_SCHEMA_VERSION = 9
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -677,6 +677,282 @@ def _migration_8_product_recipe_active_contract(conn):
     """)
 
 
+def _migration_9_global_food_safety_foundation(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS kontrollu_dokumanlar (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dokuman_kodu TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            baslik TEXT NOT NULL,
+            kategori TEXT NOT NULL,
+            kapsam TEXT,
+            dokuman_sahibi_personel_id INTEGER,
+            gozden_gecirme_periyodu_ay INTEGER CHECK(
+                gozden_gecirme_periyodu_ay IS NULL
+                OR gozden_gecirme_periyodu_ay > 0
+            ),
+            aktif INTEGER NOT NULL DEFAULT 1 CHECK(
+                aktif IN (0, 1)
+            ),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (dokuman_sahibi_personel_id)
+                REFERENCES personeller(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS dokuman_revizyonlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dokuman_id INTEGER NOT NULL,
+            revizyon_no TEXT NOT NULL,
+            durum TEXT NOT NULL DEFAULT 'TASLAK' CHECK(
+                durum IN (
+                    'TASLAK',
+                    'INCELEMEDE',
+                    'ONAYLI',
+                    'GERI_CEKILDI',
+                    'ARSIV'
+                )
+            ),
+            yayin_tarihi TEXT,
+            gecerlilik_baslangic_tarihi TEXT,
+            gecerlilik_bitis_tarihi TEXT,
+            degisiklik_aciklamasi TEXT NOT NULL,
+            icerik_ozeti TEXT,
+            dosya_yolu TEXT,
+            dosya_sha256 TEXT,
+            olusturan_personel_id INTEGER NOT NULL,
+            onaylayan_personel_id INTEGER,
+            onay_zamani TEXT,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (dokuman_id)
+                REFERENCES kontrollu_dokumanlar(id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY (olusturan_personel_id)
+                REFERENCES personeller(id),
+            FOREIGN KEY (onaylayan_personel_id)
+                REFERENCES personeller(id),
+            UNIQUE (dokuman_id, revizyon_no),
+            CHECK (
+                durum != 'ONAYLI'
+                OR (
+                    onaylayan_personel_id IS NOT NULL
+                    AND onay_zamani IS NOT NULL
+                    AND yayin_tarihi IS NOT NULL
+                )
+            )
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        ux_dokuman_tek_onayli_revizyon
+        ON dokuman_revizyonlari(dokuman_id)
+        WHERE durum = 'ONAYLI';
+
+        CREATE INDEX IF NOT EXISTS
+        idx_dokuman_revizyon_durum
+        ON dokuman_revizyonlari (
+            durum,
+            gecerlilik_bitis_tarihi
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_kontrollu_dokuman_kategori
+        ON kontrollu_dokumanlar (
+            kategori,
+            aktif
+        );
+
+        CREATE TABLE IF NOT EXISTS dijital_onaylar (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kaynak_turu TEXT NOT NULL,
+            kaynak_id INTEGER NOT NULL,
+            onay_turu TEXT NOT NULL,
+            karar TEXT NOT NULL CHECK(
+                karar IN (
+                    'ONAYLANDI',
+                    'REDDEDILDI',
+                    'IADE_EDILDI',
+                    'IPTAL_EDILDI'
+                )
+            ),
+            kullanici_id INTEGER NOT NULL,
+            personel_id INTEGER NOT NULL,
+            kullanici_adi TEXT NOT NULL,
+            ad_soyad TEXT NOT NULL,
+            onay_zamani TEXT NOT NULL,
+            aciklama TEXT,
+            icerik_sha256 TEXT NOT NULL,
+            oturum_id TEXT,
+            FOREIGN KEY (kullanici_id)
+                REFERENCES kullanici_hesaplari(id),
+            FOREIGN KEY (personel_id)
+                REFERENCES personeller(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_dijital_onay_kaynak
+        ON dijital_onaylar (
+            kaynak_turu,
+            kaynak_id,
+            onay_turu
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_dijital_onay_personel
+        ON dijital_onaylar (
+            personel_id,
+            onay_zamani
+        );
+
+        CREATE TABLE IF NOT EXISTS kanit_dosyalari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kaynak_turu TEXT NOT NULL,
+            kaynak_id INTEGER NOT NULL,
+            kanit_turu TEXT NOT NULL,
+            dosya_adi TEXT NOT NULL,
+            dosya_yolu TEXT NOT NULL,
+            mime_turu TEXT,
+            dosya_boyutu INTEGER CHECK(
+                dosya_boyutu IS NULL
+                OR dosya_boyutu >= 0
+            ),
+            dosya_sha256 TEXT NOT NULL,
+            cekim_olay_zamani TEXT,
+            aciklama TEXT,
+            yukleyen_kullanici_id INTEGER,
+            yukleyen_personel_id INTEGER,
+            kayit_zamani TEXT NOT NULL,
+            FOREIGN KEY (yukleyen_kullanici_id)
+                REFERENCES kullanici_hesaplari(id),
+            FOREIGN KEY (yukleyen_personel_id)
+                REFERENCES personeller(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_kanit_dosyasi_kaynak
+        ON kanit_dosyalari (
+            kaynak_turu,
+            kaynak_id
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        ux_kanit_dosyasi_kaynak_hash
+        ON kanit_dosyalari (
+            kaynak_turu,
+            kaynak_id,
+            dosya_sha256
+        );
+
+        CREATE TABLE IF NOT EXISTS entegrasyon_cihazlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cihaz_kodu TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            cihaz_adi TEXT NOT NULL,
+            cihaz_turu TEXT NOT NULL CHECK(
+                cihaz_turu IN (
+                    'SENSOR',
+                    'KAMERA',
+                    'MOBIL_CIHAZ',
+                    'TERAZI',
+                    'TERMOMETRE',
+                    'DIGER'
+                )
+            ),
+            konum TEXT,
+            uretici TEXT,
+            model TEXT,
+            seri_no TEXT,
+            yapilandirma_json TEXT CHECK(
+                yapilandirma_json IS NULL
+                OR json_valid(yapilandirma_json)
+            ),
+            son_gorulme_zamani TEXT,
+            aktif INTEGER NOT NULL DEFAULT 1 CHECK(
+                aktif IN (0, 1)
+            ),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_entegrasyon_cihazi_tur_aktif
+        ON entegrasyon_cihazlari (
+            cihaz_turu,
+            aktif
+        );
+
+        CREATE TABLE IF NOT EXISTS entegrasyon_olaylari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            olay_uuid TEXT NOT NULL UNIQUE,
+            kaynak_turu TEXT NOT NULL CHECK(
+                kaynak_turu IN (
+                    'SENSOR',
+                    'KAMERA',
+                    'MOBIL',
+                    'API',
+                    'MANUEL'
+                )
+            ),
+            cihaz_id INTEGER,
+            olay_turu TEXT NOT NULL,
+            olay_zamani TEXT NOT NULL,
+            alinma_zamani TEXT NOT NULL,
+            onem_derecesi TEXT NOT NULL DEFAULT 'BILGI' CHECK(
+                onem_derecesi IN (
+                    'BILGI',
+                    'DUSUK',
+                    'ORTA',
+                    'YUKSEK',
+                    'KRITIK'
+                )
+            ),
+            konum TEXT,
+            payload_json TEXT NOT NULL CHECK(
+                json_valid(payload_json)
+            ),
+            durum TEXT NOT NULL DEFAULT 'YENI' CHECK(
+                durum IN (
+                    'YENI',
+                    'INCELENIYOR',
+                    'ISLENDI',
+                    'YOK_SAYILDI',
+                    'HATA'
+                )
+            ),
+            kalite_uygunsuzluk_id INTEGER,
+            isleyen_kullanici_id INTEGER,
+            islenme_zamani TEXT,
+            islem_aciklamasi TEXT,
+            kayit_zamani TEXT NOT NULL,
+            FOREIGN KEY (cihaz_id)
+                REFERENCES entegrasyon_cihazlari(id),
+            FOREIGN KEY (kalite_uygunsuzluk_id)
+                REFERENCES kalite_uygunsuzluklari(id),
+            FOREIGN KEY (isleyen_kullanici_id)
+                REFERENCES kullanici_hesaplari(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_entegrasyon_olayi_durum
+        ON entegrasyon_olaylari (
+            durum,
+            onem_derecesi,
+            olay_zamani
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_entegrasyon_olayi_cihaz
+        ON entegrasyon_olaylari (
+            cihaz_id,
+            olay_zamani
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_entegrasyon_olayi_uygunsuzluk
+        ON entegrasyon_olaylari (
+            kalite_uygunsuzluk_id
+        );
+    """)
+
+
 MIGRATIONS = (
     (
         1,
@@ -717,6 +993,11 @@ MIGRATIONS = (
         8,
         "product_recipe_active_contract",
         _migration_8_product_recipe_active_contract,
+    ),
+    (
+        9,
+        "global_food_safety_foundation",
+        _migration_9_global_food_safety_foundation,
     ),
 )
 
