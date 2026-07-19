@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -953,6 +953,192 @@ def _migration_9_global_food_safety_foundation(conn):
     """)
 
 
+def _migration_10_commercial_recipe_catalog_contract(conn):
+    recipe_columns = {
+        row[1]
+        for row in conn.execute(
+            "PRAGMA table_info(receteler)"
+        ).fetchall()
+    }
+
+    process_water_added = (
+        "proses_suyu_kg" not in recipe_columns
+    )
+
+    if "recete_kodu" not in recipe_columns:
+        conn.execute("""
+            ALTER TABLE receteler
+            ADD COLUMN recete_kodu TEXT
+                COLLATE NOCASE
+        """)
+
+    if process_water_added:
+        conn.execute("""
+            ALTER TABLE receteler
+            ADD COLUMN proses_suyu_kg REAL
+                NOT NULL DEFAULT 0
+                CHECK (proses_suyu_kg >= 0)
+        """)
+
+    if "durum" not in recipe_columns:
+        conn.execute("""
+            ALTER TABLE receteler
+            ADD COLUMN durum TEXT
+                NOT NULL DEFAULT 'TASLAK'
+                CHECK (
+                    durum IN (
+                        'TASLAK',
+                        'INCELEMEDE',
+                        'ONAYLI',
+                        'AKTIF',
+                        'PASIF',
+                        'ARSIV'
+                    )
+                )
+        """)
+
+    if "onaylayan_personel_id" not in recipe_columns:
+        conn.execute("""
+            ALTER TABLE receteler
+            ADD COLUMN onaylayan_personel_id INTEGER
+                REFERENCES personeller(id)
+        """)
+
+    if "onay_zamani" not in recipe_columns:
+        conn.execute("""
+            ALTER TABLE receteler
+            ADD COLUMN onay_zamani TEXT
+        """)
+
+    if "icerik_sha256" not in recipe_columns:
+        conn.execute("""
+            ALTER TABLE receteler
+            ADD COLUMN icerik_sha256 TEXT
+        """)
+
+    conn.execute("""
+        UPDATE receteler
+        SET recete_kodu = (
+            SELECT
+                UPPER(
+                    REPLACE(
+                        TRIM(u.urun_kodu),
+                        ' ',
+                        '-'
+                    )
+                ) || '-REC'
+            FROM urunler AS u
+            WHERE u.id = receteler.urun_id
+        )
+        WHERE recete_kodu IS NULL
+           OR TRIM(recete_kodu) = ''
+    """)
+
+    if process_water_added:
+        process_water_row = conn.execute("""
+            SELECT deger
+            FROM sistem_ayarlari
+            WHERE anahtar = 'PARTI_PROSES_SUYU_KG'
+            LIMIT 1
+        """).fetchone()
+
+        legacy_process_water = (
+            float(process_water_row[0])
+            if process_water_row is not None
+            else 0.0
+        )
+
+        if legacy_process_water < 0:
+            raise RuntimeError(
+                "Migration 10: Eski proses suyu negatif olamaz."
+            )
+
+        conn.execute("""
+            UPDATE receteler
+            SET proses_suyu_kg = ?
+        """, (
+            legacy_process_water,
+        ))
+
+    conn.execute("""
+        UPDATE receteler
+        SET durum = CASE
+            WHEN aktif = 1
+                THEN 'AKTIF'
+            WHEN EXISTS (
+                SELECT 1
+                FROM uretim_recete AS ur
+                WHERE ur.recete_id = receteler.id
+            )
+                THEN 'ARSIV'
+            ELSE 'PASIF'
+        END
+    """)
+
+    invalid_rows = conn.execute("""
+        SELECT
+            r.id,
+            r.recete_kodu,
+            r.parti_teorik_kg,
+            r.proses_suyu_kg,
+            COALESCE(
+                (
+                    SELECT SUM(rk.miktar_kg)
+                    FROM recete_kalemleri AS rk
+                    WHERE rk.recete_id = r.id
+                ),
+                0
+            ) AS hammadde_toplami
+        FROM receteler AS r
+        WHERE r.recete_kodu IS NULL
+           OR TRIM(r.recete_kodu) = ''
+           OR r.parti_teorik_kg <= 0
+           OR r.proses_suyu_kg < 0
+           OR ABS(
+                r.parti_teorik_kg
+                - (
+                    r.proses_suyu_kg
+                    + COALESCE(
+                        (
+                            SELECT SUM(rk.miktar_kg)
+                            FROM recete_kalemleri AS rk
+                            WHERE rk.recete_id = r.id
+                        ),
+                        0
+                    )
+                )
+           ) >= 0.000001
+    """).fetchall()
+
+    if invalid_rows:
+        raise RuntimeError(
+            "Migration 10: Reçete katalog sözleşmesi "
+            f"uyumsuz kayıtlar: {invalid_rows}"
+        )
+
+    conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        ux_receteler_catalog_revision
+        ON receteler (
+            urun_id,
+            recete_kodu,
+            revizyon_no
+        )
+        WHERE recete_kodu IS NOT NULL
+          AND revizyon_no IS NOT NULL
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_receteler_catalog_status
+        ON receteler (
+            durum,
+            aktif,
+            gecerlilik_tarihi
+        )
+    """)
+
+
 MIGRATIONS = (
     (
         1,
@@ -998,6 +1184,11 @@ MIGRATIONS = (
         9,
         "global_food_safety_foundation",
         _migration_9_global_food_safety_foundation,
+    ),
+    (
+        10,
+        "commercial_recipe_catalog_contract",
+        _migration_10_commercial_recipe_catalog_contract,
     ),
 )
 

@@ -430,6 +430,7 @@ class RedboxOS(ctk.CTk):
                 SELECT
                     id,
                     parti_teorik_kg,
+                    proses_suyu_kg,
                     revizyon_no,
                     gecerlilik_tarihi
                 FROM receteler
@@ -458,22 +459,10 @@ class RedboxOS(ctk.CTk):
                 recete["id"],
             )).fetchone()["toplam"]
 
-            su = conn.execute("""
-                SELECT deger
-                FROM sistem_ayarlari
-                WHERE anahtar = ?
-            """, (
-                "PARTI_PROSES_SUYU_KG",
-            )).fetchone()
-
-            if su is None:
-                raise ValueError(
-                    "PARTI_PROSES_SUYU_KG "
-                    "sistem ayarı bulunamadı."
-                )
-
             stoklu_parti = float(stoklu)
-            su_parti = float(su["deger"])
+            su_parti = float(
+                recete["proses_suyu_kg"]
+            )
             teorik_parti = float(
                 recete["parti_teorik_kg"]
             )
@@ -9201,6 +9190,7 @@ class RedboxOS(ctk.CTk):
                     id,
                     ad,
                     parti_teorik_kg,
+                    proses_suyu_kg,
                     aktif,
                     revizyon_no,
                     gecerlilik_tarihi,
@@ -9235,22 +9225,8 @@ class RedboxOS(ctk.CTk):
                 ),
             ).fetchall()
 
-            ayar = conn.execute(
-                """
-                SELECT deger
-                FROM sistem_ayarlari
-                WHERE anahtar = ?
-                LIMIT 1
-                """,
-                (
-                    "PARTI_PROSES_SUYU_KG",
-                ),
-            ).fetchone()
-
-            proses_suyu_kg = (
-                float(ayar["deger"])
-                if ayar is not None
-                else 0.0
+            proses_suyu_kg = float(
+                recete["proses_suyu_kg"]
             )
 
             return (
@@ -10325,6 +10301,8 @@ class RedboxOS(ctk.CTk):
                     id,
                     ad,
                     parti_teorik_kg,
+                    proses_suyu_kg,
+                    recete_kodu,
                     revizyon_no,
                     urun_id
                 FROM receteler
@@ -10502,6 +10480,28 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             govde,
+            text=(
+                "Proses Suyu (kg) — stok hareketi oluşturmaz"
+            ),
+            font=("Arial", 13, "bold"),
+        ).pack(anchor="w", padx=15, pady=(5, 3))
+
+        proses_suyu_entry = ctk.CTkEntry(
+            govde,
+            height=38,
+        )
+        proses_suyu_entry.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 15),
+        )
+        proses_suyu_entry.insert(
+            0,
+            f'{float(recete["proses_suyu_kg"]):.3f}',
+        )
+
+        ctk.CTkLabel(
+            govde,
             text="1 PARTİ REÇETE KALEMLERİ",
             font=("Arial", 16, "bold"),
         ).pack(
@@ -10593,6 +10593,7 @@ class RedboxOS(ctk.CTk):
             "tarih_entry": tarih_entry,
             "aciklama_entry": aciklama_entry,
             "personel_secim": personel_secim,
+            "proses_suyu_entry": proses_suyu_entry,
             "miktar_entryleri": miktar_entryleri,
             "kaydet_buton": kaydet_buton,
         }
@@ -10661,6 +10662,23 @@ class RedboxOS(ctk.CTk):
         miktarlar = {}
 
         try:
+            proses_suyu_metin = (
+                state["proses_suyu_entry"]
+                .get()
+                .strip()
+                .replace(",", ".")
+            )
+            proses_suyu_kg = (
+                float(proses_suyu_metin)
+                if proses_suyu_metin
+                else 0.0
+            )
+
+            if proses_suyu_kg < 0:
+                raise ValueError(
+                    "Proses suyu negatif olamaz."
+                )
+
             for (
                 hammadde_id,
                 entry,
@@ -10706,6 +10724,8 @@ class RedboxOS(ctk.CTk):
                 SELECT
                     id,
                     parti_teorik_kg,
+                    proses_suyu_kg,
+                    recete_kodu,
                     urun_id,
                     revizyon_no,
                     gecerlilik_tarihi
@@ -10750,27 +10770,6 @@ class RedboxOS(ctk.CTk):
                     "Mevcut reçete hammaddeleri yeni revizyonda "
                     "sıfır veya boş bırakılamaz."
                 )
-
-            ayar = conn.execute(
-                """
-                SELECT deger
-                FROM sistem_ayarlari
-                WHERE anahtar = ?
-                LIMIT 1
-                """,
-                (
-                    "PARTI_PROSES_SUYU_KG",
-                ),
-            ).fetchone()
-
-            if ayar is None:
-                raise RuntimeError(
-                    "PARTI_PROSES_SUYU_KG sistem ayarı bulunamadı."
-                )
-
-            proses_suyu_kg = float(
-                ayar["deger"]
-            )
 
             hesaplanan_toplam = (
                 sum(miktarlar.values())
@@ -10827,7 +10826,17 @@ class RedboxOS(ctk.CTk):
             conn.execute(
                 """
                 UPDATE receteler
-                SET aktif = 0
+                SET
+                    aktif = 0,
+                    durum = CASE
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM uretim_recete AS ur
+                            WHERE ur.recete_id = receteler.id
+                        )
+                            THEN 'ARSIV'
+                        ELSE 'PASIF'
+                    END
                 WHERE id = ?
                   AND urun_id = ?
                   AND aktif = 1
@@ -10853,9 +10862,14 @@ class RedboxOS(ctk.CTk):
                     gecerlilik_tarihi,
                     revizyon_aciklamasi,
                     olusturan_personel_id,
-                    urun_id
+                    urun_id,
+                    recete_kodu,
+                    proses_suyu_kg,
+                    durum
                 )
-                VALUES (?, ?, 1, ?, ?, ?, ?, ?)
+                VALUES (
+                    ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 'AKTIF'
+                )
                 """,
                 (
                     ad,
@@ -10865,6 +10879,8 @@ class RedboxOS(ctk.CTk):
                     aciklama,
                     personel["id"],
                     kaynak["urun_id"],
+                    kaynak["recete_kodu"],
+                    proses_suyu_kg,
                 ),
             )
 
@@ -10943,6 +10959,10 @@ class RedboxOS(ctk.CTk):
                         kaynak["gecerlilik_tarihi"]
                     ),
                     "aktif": True,
+                    "durum": "AKTIF",
+                    "proses_suyu_kg": float(
+                        kaynak["proses_suyu_kg"]
+                    ),
                     "kalem_sayisi": len(
                         kaynak_kalemler
                     ),
@@ -10952,6 +10972,9 @@ class RedboxOS(ctk.CTk):
                     "revizyon_no": yeni_revizyon_no,
                     "gecerlilik_tarihi": tarih,
                     "aktif": True,
+                    "durum": "AKTIF",
+                    "recete_kodu": kaynak["recete_kodu"],
+                    "proses_suyu_kg": proses_suyu_kg,
                     "kalem_sayisi": len(miktarlar),
                     "parti_teorik_kg": (
                         parti_teorik_kg
@@ -11105,6 +11128,7 @@ class RedboxOS(ctk.CTk):
                     id,
                     ad,
                     parti_teorik_kg,
+                    proses_suyu_kg,
                     revizyon_no,
                     gecerlilik_tarihi,
                     revizyon_aciklamasi,
@@ -11215,6 +11239,29 @@ class RedboxOS(ctk.CTk):
         ad_entry = ctk.CTkEntry(govde, height=38)
         ad_entry.pack(fill="x", padx=15, pady=(0, 10))
         ad_entry.insert(0, recete["ad"])
+
+        ctk.CTkLabel(
+            govde,
+            text=(
+                "Proses Suyu (kg) — "
+                "stok hareketi oluşturmaz"
+            ),
+            font=("Arial", 13, "bold"),
+        ).pack(anchor="w", padx=15, pady=(5, 3))
+
+        proses_suyu_entry = ctk.CTkEntry(
+            govde,
+            height=38,
+        )
+        proses_suyu_entry.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 10),
+        )
+        proses_suyu_entry.insert(
+            0,
+            f'{float(recete["proses_suyu_kg"]):.3f}',
+        )
 
         ctk.CTkLabel(
             govde,
@@ -11352,6 +11399,7 @@ class RedboxOS(ctk.CTk):
                 recete["parti_teorik_kg"]
             ),
             "ad_entry": ad_entry,
+            "proses_suyu_entry": proses_suyu_entry,
             "tarih_entry": tarih_entry,
             "aciklama_entry": aciklama_entry,
             "personel_secim": personel_secim,
@@ -11378,6 +11426,12 @@ class RedboxOS(ctk.CTk):
         personel_adi = (
             state["personel_secim"].get().strip()
         )
+        proses_suyu_metni = (
+            state["proses_suyu_entry"]
+            .get()
+            .strip()
+            .replace(",", ".")
+        )
 
         if not ad or not tarih or not aciklama:
             messagebox.showwarning(
@@ -11388,6 +11442,17 @@ class RedboxOS(ctk.CTk):
 
         try:
             datetime.strptime(tarih, "%d.%m.%Y")
+
+            proses_suyu_kg = (
+                float(proses_suyu_metni)
+                if proses_suyu_metni
+                else 0.0
+            )
+
+            if proses_suyu_kg < 0:
+                raise ValueError(
+                    "Proses suyu negatif olamaz."
+                )
 
             miktarlar = {}
 
@@ -11431,23 +11496,9 @@ class RedboxOS(ctk.CTk):
                     "düzenleme iptal edildi."
                 )
 
-            ayar = conn.execute(
-                """
-                SELECT deger
-                FROM sistem_ayarlari
-                WHERE anahtar = 'PARTI_PROSES_SUYU_KG'
-                LIMIT 1
-                """
-            ).fetchone()
-
-            if ayar is None:
-                raise RuntimeError(
-                    "Proses suyu ayarı bulunamadı."
-                )
-
             toplam = (
                 sum(miktarlar.values())
-                + float(ayar["deger"])
+                + proses_suyu_kg
             )
 
             if abs(
@@ -11483,7 +11534,8 @@ class RedboxOS(ctk.CTk):
                     ad = ?,
                     gecerlilik_tarihi = ?,
                     revizyon_aciklamasi = ?,
-                    olusturan_personel_id = ?
+                    olusturan_personel_id = ?,
+                    proses_suyu_kg = ?
                 WHERE id = ?
                 """,
                 (
@@ -11491,6 +11543,7 @@ class RedboxOS(ctk.CTk):
                     tarih,
                     aciklama,
                     personel_id,
+                    proses_suyu_kg,
                     state["recete_id"],
                 ),
             )
@@ -11539,6 +11592,7 @@ class RedboxOS(ctk.CTk):
                     "gecerlilik_tarihi": tarih,
                     "revizyon_aciklamasi": aciklama,
                     "olusturan_personel_id": personel_id,
+                    "proses_suyu_kg": proses_suyu_kg,
                     "kalem_sayisi": len(miktarlar),
                 },
                 oturum_id=self.current_user.get(

@@ -50,6 +50,47 @@ class Phase13BusinessRulesSandboxTest(unittest.TestCase):
         ).resolve()
         shutil.copy2(self.baseline_db, self.sandbox_db)
         self.assert_sandbox_target()
+
+        project_root_text = str(self.project_root)
+        if project_root_text not in sys.path:
+            sys.path.insert(0, project_root_text)
+
+        from database.migrations import run_migrations
+
+        bootstrap_conn = sqlite3.connect(
+            self.sandbox_db
+        )
+
+        try:
+            recipe_columns = {
+                row[1]
+                for row in bootstrap_conn.execute(
+                    "PRAGMA table_info(receteler)"
+                ).fetchall()
+            }
+
+            legacy_recipe_columns = {
+                "revizyon_no": "TEXT",
+                "gecerlilik_tarihi": "TEXT",
+                "revizyon_aciklamasi": "TEXT",
+                "olusturan_personel_id": "INTEGER",
+            }
+
+            for column, column_type in (
+                legacy_recipe_columns.items()
+            ):
+                if column not in recipe_columns:
+                    bootstrap_conn.execute(
+                        f"ALTER TABLE receteler "
+                        f"ADD COLUMN {column} {column_type}"
+                    )
+
+            bootstrap_conn.commit()
+        finally:
+            bootstrap_conn.close()
+
+        run_migrations(self.sandbox_db)
+
         self.conn = sqlite3.connect(self.sandbox_db)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
