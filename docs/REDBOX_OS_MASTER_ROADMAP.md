@@ -186,7 +186,7 @@ Durum: **TAMAMLANDI**
 
 ### Sprint CRC-3 — Reçete merkezi profesyonel ekranı
 
-Durum: **SIRADAKİ SABİT İŞLEM**
+Durum: **TAMAMLANDI — 20.07.2026**
 
 - Ürün filtresi
 - Reçete durumu filtresi
@@ -199,6 +199,14 @@ Durum: **SIRADAKİ SABİT İŞLEM**
 - Kontrollü onay
 - PDF reçete föyü
 - Dijital onay ve audit bağlantısı
+- SHA-256 içerik bütünlüğü ve stale-hash koruması
+- Kontrollü PDF oluşturma audit kaydı
+- PDF otomatik açma ve duyarlı alt işlem çubuğu
+- İki sayfalı profesyonel PDF yerleşimi
+- Canlı Reçete ID 10 PDF üretim ve görsel kabulü
+- CRC-3 tam regresyon: 54/54 PASS
+- SQLite integrity: ok
+- Foreign key violation: 0
 
 ### Sprint CRC-4 — Ticari başlangıç kataloğu
 
@@ -367,6 +375,6 @@ Fatih Ayaz tarafından çalışma sırasında belirtilen yeni fikirler:
 
 ## 10. Sıradaki Kesin İşlem
 
-`CRC-3 — Reçete merkezi profesyonel ekranı`
+`CRC-4 — Ticari başlangıç kataloğu`
 
-Başka modül açılmayacaktır. CRC-1 reçete katalog sözleşmesi ve CRC-2 atomik CSV/XLSX import motoru tamamlanmıştır. Sıradaki çalışma ürün filtreleri, revizyon geçmişi, reçete karşılaştırma, kontrollü onay ve reçete föyü üzerinde yürütülecektir.
+Başka modül açılmayacaktır. CRC-1 reçete katalog sözleşmesi, CRC-2 atomik CSV/XLSX import motoru ve CRC-3 profesyonel reçete merkezi tamamlanmıştır. Sıradaki çalışma yalnız Fatih Ayaz tarafından sağlanacak yetkili gerçek reçete verileriyle 60+ ticari başlangıç kataloğunun dry-run, hata temizleme, sandbox import ve kontrollü kabul süreci üzerinde yürütülecektir. Yetkili kaynak olmadan gerçek reçete içeriği üretilmeyecek veya uydurulmayacaktır.

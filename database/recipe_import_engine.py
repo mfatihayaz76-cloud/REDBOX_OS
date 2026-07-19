@@ -1036,7 +1036,6 @@ def _recipe_content_hash(recipe):
         "gecerlilik_tarihi": (
             row["gecerlilik_tarihi"]
         ),
-        "durum": row["durum"],
         "parti_teorik_kg": round(
             float(row["parti_teorik_kg"]),
             6,

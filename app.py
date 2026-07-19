@@ -47,6 +47,7 @@ from ui.controllers.dashboard_controller import DashboardController
 from ui.services.product_service import ProductService
 from ui.order_calculator import OrderCalculatorWindow
 from ui.recipe_import import RecipeImportWindow
+from ui.recipe_center import RecipeCenterWindow
 from ui.login import authenticate_user
 
 ctk.set_appearance_mode("dark")
@@ -9343,6 +9344,20 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkButton(
             urun_panel,
+            text="PROFESYONEL KATALOG",
+            width=195,
+            height=36,
+            fg_color="#475569",
+            hover_color="#334155",
+            command=self.recete_profesyonel_merkez_ac,
+        ).pack(
+            side="right",
+            padx=(6, 0),
+            pady=12,
+        )
+
+        ctk.CTkButton(
+            urun_panel,
             text="TOPLU KATALOG İÇE AKTAR",
             width=220,
             height=36,
@@ -10023,6 +10038,40 @@ class RedboxOS(ctk.CTk):
             self.recete_gecmis_tree.focus(
                 str(revizyonlar[0]["id"])
             )
+
+
+    def recete_profesyonel_merkez_ac(self):
+        if not self.formul_erisim_kontrolu():
+            return
+
+        RecipeCenterWindow(
+            self,
+            current_user=self.current_user,
+            on_select=self.recete_katalog_urune_git,
+        )
+
+
+    def recete_katalog_urune_git(
+        self,
+        urun_id,
+        urun_adi,
+    ):
+        urun_id = int(urun_id)
+        urun_adi = str(urun_adi).strip()
+
+        if (
+            urun_adi not in self.recete_urun_map
+            or int(self.recete_urun_map[urun_adi])
+            != urun_id
+        ):
+            messagebox.showerror(
+                "Reçete Kataloğu",
+                "Seçilen ürün aktif ürün listesinde bulunamadı.",
+            )
+            return
+
+        self.recete_secili_urun_adi = urun_adi
+        self.recete()
 
 
     def recete_katalog_import_ac(self):

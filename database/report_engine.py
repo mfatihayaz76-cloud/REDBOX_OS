@@ -866,6 +866,399 @@ def uretim_pdf_olustur(conn, uretim_id):
     return dosya
 
 
+def recete_pdf_olustur(conn, recete_id):
+    recete = conn.execute(
+        """
+        SELECT
+            r.id,
+            r.urun_id,
+            u.urun_kodu,
+            u.urun_adi,
+            u.kategori,
+            u.barkod,
+            u.birim,
+            u.raf_omru_gun,
+            u.saklama_sicakligi,
+            r.recete_kodu,
+            r.ad AS recete_adi,
+            r.revizyon_no,
+            r.gecerlilik_tarihi,
+            r.durum,
+            r.aktif,
+            r.parti_teorik_kg,
+            r.proses_suyu_kg,
+            r.revizyon_aciklamasi,
+            r.olusturan_personel_id,
+            olusturan.ad_soyad AS olusturan,
+            r.onaylayan_personel_id,
+            onaylayan.ad_soyad AS onaylayan,
+            r.onay_zamani,
+            r.icerik_sha256
+        FROM receteler r
+        JOIN urunler u
+          ON u.id = r.urun_id
+        LEFT JOIN personeller olusturan
+          ON olusturan.id = r.olusturan_personel_id
+        LEFT JOIN personeller onaylayan
+          ON onaylayan.id = r.onaylayan_personel_id
+        WHERE r.id = ?
+        LIMIT 1
+        """,
+        (int(recete_id),),
+    ).fetchone()
+
+    if recete is None:
+        raise ValueError(
+            "Reçete kaydı bulunamadı."
+        )
+
+    kalemler = conn.execute(
+        """
+        SELECT
+            rk.id,
+            h.ad AS hammadde,
+            rk.miktar_kg
+        FROM recete_kalemleri rk
+        JOIN hammaddeler h
+          ON h.id = rk.hammadde_id
+        WHERE rk.recete_id = ?
+        ORDER BY rk.id
+        """,
+        (int(recete["id"]),),
+    ).fetchall()
+
+    if not kalemler:
+        raise ValueError(
+            "Kalemsiz reçete föyü oluşturulamaz."
+        )
+
+    dijital_onay = conn.execute(
+        """
+        SELECT
+            karar,
+            kullanici_adi,
+            ad_soyad,
+            onay_zamani,
+            aciklama,
+            icerik_sha256
+        FROM dijital_onaylar
+        WHERE kaynak_turu = 'RECETE'
+          AND kaynak_id = ?
+          AND onay_turu = 'RECETE_ONAYI'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (int(recete["id"]),),
+    ).fetchone()
+
+    hammadde_toplami = sum(
+        float(row["miktar_kg"])
+        for row in kalemler
+    )
+    proses_suyu = float(
+        recete["proses_suyu_kg"] or 0
+    )
+    hesaplanan_parti = (
+        hammadde_toplami
+        + proses_suyu
+    )
+    teorik_parti = float(
+        recete["parti_teorik_kg"]
+    )
+    kutle_farki = (
+        hesaplanan_parti
+        - teorik_parti
+    )
+    denge_uyumlu = abs(kutle_farki) < 0.000001
+
+    referans = (
+        f"{recete['recete_kodu'] or 'RECETE'}-"
+        f"REV-{recete['revizyon_no'] or '00'}"
+    )
+
+    dosya = pdf_yolu(
+        "RECETE_FOYU",
+        referans,
+    )
+    doc = pdf_dokuman_olustur(dosya)
+    story = []
+
+    pdf_rapor_basligi(
+        story,
+        "KONTROLLÜ REÇETE FÖYÜ",
+        referans,
+    )
+
+    pdf_bolum_basligi(
+        story,
+        "Ürün ve Reçete Kimliği",
+    )
+
+    kimlik_bilgileri = [
+        ("Reçete Kayıt ID", recete["id"]),
+        ("Ürün Kodu", recete["urun_kodu"]),
+        ("Ürün Adı", recete["urun_adi"]),
+        ("Ürün Kategorisi", recete["kategori"] or "-"),
+        ("Barkod", recete["barkod"] or "-"),
+        ("Reçete Kodu", recete["recete_kodu"] or "-"),
+        ("Reçete Adı", recete["recete_adi"]),
+        ("Revizyon No", recete["revizyon_no"] or "-"),
+        (
+            "Geçerlilik Tarihi",
+            recete["gecerlilik_tarihi"] or "-",
+        ),
+        ("Reçete Durumu", recete["durum"]),
+        (
+            "Üretim Kullanımı",
+            (
+                "AKTİF"
+                if int(recete["aktif"]) == 1
+                else "PASİF"
+            ),
+        ),
+    ]
+
+    for etiket, deger in kimlik_bilgileri:
+        pdf_bilgi_satiri(
+            story,
+            etiket,
+            deger,
+        )
+
+    pdf_bolum_basligi(
+        story,
+        "Ürün Muhafaza Bilgileri",
+    )
+
+    muhafaza_bilgileri = [
+        ("Birim", recete["birim"] or "KG"),
+        (
+            "Raf Ömrü",
+            (
+                f"{recete['raf_omru_gun']} gün"
+                if recete["raf_omru_gun"] is not None
+                else "-"
+            ),
+        ),
+        (
+            "Saklama Sıcaklığı",
+            recete["saklama_sicakligi"] or "-",
+        ),
+    ]
+
+    for etiket, deger in muhafaza_bilgileri:
+        pdf_bilgi_satiri(
+            story,
+            etiket,
+            deger,
+        )
+
+    pdf_bolum_basligi(
+        story,
+        "1 Parti Formülasyonu",
+    )
+
+    formula_rows = []
+
+    for index, row in enumerate(
+        kalemler,
+        start=1,
+    ):
+        miktar = float(row["miktar_kg"])
+        oran = (
+            miktar / teorik_parti * 100
+            if teorik_parti > 0
+            else 0
+        )
+
+        formula_rows.append(
+            [
+                index,
+                row["hammadde"],
+                f"{miktar:.3f}",
+                f"%{oran:.3f}",
+                "Stoklu",
+            ]
+        )
+
+    water_ratio = (
+        proses_suyu / teorik_parti * 100
+        if teorik_parti > 0
+        else 0
+    )
+
+    formula_rows.append(
+        [
+            len(formula_rows) + 1,
+            "Proses Suyu",
+            f"{proses_suyu:.3f}",
+            f"%{water_ratio:.3f}",
+            "Stok Dışı",
+        ]
+    )
+
+    pdf_tablo(
+        story,
+        [
+            "Sıra",
+            "Hammadde / Bileşen",
+            "Miktar kg",
+            "Parti Oranı",
+            "Stok Niteliği",
+        ],
+        formula_rows,
+        [35, 185, 75, 75, 80],
+    )
+
+    story.append(PageBreak())
+
+    pdf_bolum_basligi(
+        story,
+        "Kütle Dengesi",
+    )
+
+    denge_bilgileri = [
+        (
+            "Stoklu Hammadde Toplamı",
+            f"{hammadde_toplami:.3f} kg",
+        ),
+        (
+            "Proses Suyu",
+            f"{proses_suyu:.3f} kg",
+        ),
+        (
+            "Hesaplanan 1 Parti",
+            f"{hesaplanan_parti:.3f} kg",
+        ),
+        (
+            "Tanımlı 1 Parti",
+            f"{teorik_parti:.3f} kg",
+        ),
+        (
+            "Kütle Dengesi Farkı",
+            f"{kutle_farki:+.6f} kg",
+        ),
+        (
+            "Kütle Dengesi Sonucu",
+            (
+                "UYGUN"
+                if denge_uyumlu
+                else "UYGUN DEĞİL"
+            ),
+        ),
+    ]
+
+    for etiket, deger in denge_bilgileri:
+        pdf_bilgi_satiri(
+            story,
+            etiket,
+            deger,
+        )
+
+    pdf_bolum_basligi(
+        story,
+        "Revizyon ve Dijital Onay",
+    )
+
+    onay_bilgileri = [
+        (
+            "Revizyon Açıklaması",
+            recete["revizyon_aciklamasi"] or "-",
+        ),
+        (
+            "Oluşturan",
+            recete["olusturan"] or "-",
+        ),
+        (
+            "Reçete Onaylayanı",
+            recete["onaylayan"] or "-",
+        ),
+        (
+            "Reçete Onay Zamanı",
+            recete["onay_zamani"] or "-",
+        ),
+        (
+            "Dijital Onay Kararı",
+            (
+                dijital_onay["karar"]
+                if dijital_onay
+                else "DİJİTAL ONAY YOK"
+            ),
+        ),
+        (
+            "Dijital Onay Sahibi",
+            (
+                dijital_onay["ad_soyad"]
+                if dijital_onay
+                else "-"
+            ),
+        ),
+        (
+            "Dijital Onay Zamanı",
+            (
+                dijital_onay["onay_zamani"]
+                if dijital_onay
+                else "-"
+            ),
+        ),
+        (
+            "Dijital Onay Açıklaması",
+            (
+                dijital_onay["aciklama"] or "-"
+                if dijital_onay
+                else "-"
+            ),
+        ),
+        (
+            "İçerik SHA-256",
+            (
+                dijital_onay["icerik_sha256"]
+                if dijital_onay
+                else (
+                    recete["icerik_sha256"]
+                    or "HENÜZ OLUŞTURULMADI"
+                )
+            ),
+        ),
+    ]
+
+    for etiket, deger in onay_bilgileri:
+        pdf_bilgi_satiri(
+            story,
+            etiket,
+            deger,
+        )
+
+    pdf_bolum_basligi(
+        story,
+        "Kontrol Notları",
+    )
+
+    pdf_bilgi_satiri(
+        story,
+        "Proses Suyu",
+        (
+            "Ürün kütlesine dahildir; hammadde stok "
+            "hareketi oluşturmaz."
+        ),
+    )
+    pdf_bilgi_satiri(
+        story,
+        "Doküman Niteliği",
+        (
+            "Bu föy REDBOX OS reçete revizyonu ve dijital "
+            "onay kayıtlarından üretilen kontrollü çıktıdır."
+        ),
+    )
+
+    pdf_build(
+        doc,
+        story,
+    )
+
+    return dosya
+
+
 def paketleme_pdf_olustur(conn, paketleme_id):
     kayit = conn.execute(
         """
