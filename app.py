@@ -104,25 +104,47 @@ class RedboxOS(ctk.CTk):
             font=("Arial", 13)
         ).grid(row=1, column=0, padx=25, pady=(0, 30))
 
-        menu = [
-            ("ANA SAYFA", self.ana_sayfa),
-            ("DEPO KABUL", self.depo_kabul),
-            ("ÜRETİM", self.uretim),
-            ("PAKETLEME", self.paketleme),
-            ("STOK", self.stok),
-            ("SEVKİYAT", self.sevkiyat),
-            ("SEVKİYAT RAPORU", self.sevkiyat_raporu),
-            ("İZLENEBİLİRLİK", self.izlenebilirlik),
-            ("KALİTE / CAPA", self.kalite),
-            *(
-                [("REÇETE", self.recete)]
-                if self.formul_yetkili
-                else []
-            ),
-            ("PERSONEL", self.personel),
-            ("TEMİZLİK", self.temizlik),
-            ("SİSTEM", self.sistem),
-        ]
+        def menu_izin(yetki):
+            return (
+                self.current_user.get("yonetici")
+                or yetki in self.current_user.get("yetkiler", [])
+            )
+
+        menu = [("ANA SAYFA", self.ana_sayfa)]
+
+        if menu_izin("DEPO_KABUL"):
+            menu.append(("DEPO KABUL", self.depo_kabul))
+
+        if menu_izin("URETIM"):
+            menu.append(("ÜRETİM", self.uretim))
+
+        if menu_izin("PAKETLEME"):
+            menu.append(("PAKETLEME", self.paketleme))
+
+        if menu_izin("STOK"):
+            menu.append(("STOK", self.stok))
+
+        if menu_izin("SEVKIYAT"):
+            menu.append(("SEVKİYAT", self.sevkiyat))
+            menu.append(("SEVKİYAT RAPORU", self.sevkiyat_raporu))
+
+        if menu_izin("IZLENEBILIRLIK"):
+            menu.append(("İZLENEBİLİRLİK", self.izlenebilirlik))
+
+        if menu_izin("KALITE"):
+            menu.append(("KALİTE / CAPA", self.kalite))
+
+        if self.formul_yetkili:
+            menu.append(("REÇETE", self.recete))
+
+        if menu_izin("PERSONEL"):
+            menu.append(("PERSONEL", self.personel))
+
+        if menu_izin("TEMIZLIK"):
+            menu.append(("TEMİZLİK", self.temizlik))
+
+        if menu_izin("SISTEM"):
+            menu.append(("SİSTEM", self.sistem))
 
         for index, (text, command) in enumerate(menu, start=2):
             ctk.CTkButton(
@@ -241,6 +263,22 @@ class RedboxOS(ctk.CTk):
         )
         return False
 
+
+    def yetki_kontrolu(self, yetki_kodu, modul_adi):
+        if self.current_user.get("yonetici"):
+            return True
+
+        if yetki_kodu in self.current_user.get("yetkiler", []):
+            return True
+
+        messagebox.showerror(
+            "Yetkisiz Erişim",
+            (
+                f"{modul_adi} modülünü kullanma yetkiniz bulunmuyor."
+            ),
+        )
+        return False
+
     def toggle_sidebar(self):
         if self.sidebar_visible:
             self.sidebar.grid_remove()
@@ -288,16 +326,46 @@ class RedboxOS(ctk.CTk):
             "REDBOX Gıda 2026 operasyon kontrol merkezi"
         )
 
-        dashboard = DashboardPage(
-            self.content,
-            quick_actions=[
+        yonetici = bool(
+            self.current_user.get("yonetici")
+        )
+        kullanici_yetkileri = set(
+            self.current_user.get("yetkiler", [])
+        )
+
+        def dashboard_izin(yetki_kodu):
+            return (
+                yonetici
+                or yetki_kodu in kullanici_yetkileri
+            )
+
+        quick_actions = []
+
+        if dashboard_izin("STOK"):
+            quick_actions.extend([
                 ("GENEL STOK", self.stok),
                 ("HAMMADDE STOK", self.stok),
-                ("DEPO KABUL", self.depo_kabul),
-                ("YENİ ÜRETİM", self.uretim),
                 ("SİPARİŞ HESAPLA", self.siparis_hesapla),
-                ("KALİTE / CAPA", self.kalite),
-            ],
+            ])
+
+        if dashboard_izin("DEPO_KABUL"):
+            quick_actions.append(
+                ("DEPO KABUL", self.depo_kabul)
+            )
+
+        if dashboard_izin("URETIM"):
+            quick_actions.append(
+                ("YENİ ÜRETİM", self.uretim)
+            )
+
+        if dashboard_izin("KALITE"):
+            quick_actions.append(
+                ("KALİTE / CAPA", self.kalite)
+            )
+
+        dashboard = DashboardPage(
+            self.content,
+            quick_actions=quick_actions,
         )
         dashboard.pack(
             fill="both",
@@ -472,6 +540,9 @@ class RedboxOS(ctk.CTk):
 
 
     def stok(self):
+        if not self.yetki_kontrolu("STOK", "Stok"):
+            return
+
         self.clear_content()
 
         mamul_rows = [
@@ -1139,6 +1210,12 @@ class RedboxOS(ctk.CTk):
         OrderCalculatorWindow(self)
 
     def depo_kabul(self):
+        if not self.yetki_kontrolu(
+            "DEPO_KABUL",
+            "Depo Kabul",
+        ):
+            return
+
         self.show_page(
             "DEPO KABUL",
             "Hammadde kabul, tedarikçi ve lot yönetimi",
@@ -2237,6 +2314,12 @@ class RedboxOS(ctk.CTk):
                 conn.close()
 
     def uretim(self):
+        if not self.yetki_kontrolu(
+            "URETIM",
+            "Üretim",
+        ):
+            return
+
         self.show_page(
             "ÜRETİM",
             "Parti hesabı, üretim firesi ve ürün lot kayıtları"
@@ -3743,6 +3826,12 @@ class RedboxOS(ctk.CTk):
                 conn.close()
 
     def paketleme(self):
+        if not self.yetki_kontrolu(
+            "PAKETLEME",
+            "Paketleme",
+        ):
+            return
+
         self.show_page(
             "PAKETLEME",
             "Üretim lotuna bağlı 500 g ve 2.5 kg paketleme kayıtları"
@@ -4819,6 +4908,12 @@ class RedboxOS(ctk.CTk):
         )
 
     def sevkiyat(self):
+        if not self.yetki_kontrolu(
+            "SEVKIYAT",
+            "Sevkiyat",
+        ):
+            return
+
         self.show_page(
             "SEVKİYAT",
             "Mamul depo stokundan koli ve paket bazlı sevkiyat"
@@ -5893,6 +5988,12 @@ class RedboxOS(ctk.CTk):
         )
 
     def sevkiyat_raporu(self):
+        if not self.yetki_kontrolu(
+            "SEVKIYAT",
+            "Sevkiyat Raporu",
+        ):
+            return
+
         self.show_page(
             "SEVKİYAT RAPORU",
             "Tarih aralığı ve müşteri bazlı sevkiyat analizi"
@@ -6520,6 +6621,9 @@ class RedboxOS(ctk.CTk):
 
 
     def izlenebilirlik(self):
+        if not self.yetki_kontrolu("IZLENEBILIRLIK", "İzlenebilirlik"):
+            return
+
         self.show_page(
             "İZLENEBİLİRLİK",
             "Ürün lotundan hammaddeye ve müşteriye tam lot zinciri"
@@ -7843,6 +7947,12 @@ class RedboxOS(ctk.CTk):
         )
 
     def temizlik(self):
+        if not self.yetki_kontrolu(
+            "TEMIZLIK",
+            "Temizlik",
+        ):
+            return
+
         self.show_page(
             "TEMİZLİK",
             "Planlı temizlik görevleri ve gerçekleşme takibi"
@@ -9076,7 +9186,7 @@ class RedboxOS(ctk.CTk):
 
 
 
-    def recete_verilerini_getir(self):
+    def recete_verilerini_getir(self, urun_id):
         if not self.formul_yetkili:
             raise PermissionError(
                 "1 parti üretim formülüne erişim yetkiniz yok."
@@ -9097,9 +9207,13 @@ class RedboxOS(ctk.CTk):
                     revizyon_aciklamasi
                 FROM receteler
                 WHERE aktif = 1
+                  AND urun_id = ?
                 ORDER BY id DESC
                 LIMIT 1
-                """
+                """,
+                (
+                    int(urun_id),
+                ),
             ).fetchone()
 
             if recete is None:
@@ -9149,6 +9263,20 @@ class RedboxOS(ctk.CTk):
             conn.close()
 
 
+    def recete_urun_degisti(self, secim):
+        secim = str(secim).strip()
+
+        if secim not in self.recete_urun_map:
+            messagebox.showerror(
+                "Ürün Hatası",
+                "Geçerli ürün seçilmelidir.",
+            )
+            return
+
+        self.recete_secili_urun_adi = secim
+        self.recete()
+
+
     def recete(self):
         if not self.formul_erisim_kontrolu():
             return
@@ -9161,12 +9289,37 @@ class RedboxOS(ctk.CTk):
             ),
         )
 
+        self.recete_urun_map = (
+            ProductService().aktif_urun_map()
+        )
+
+        if not self.recete_urun_map:
+            raise RuntimeError(
+                "Aktif ürün bulunamadı."
+            )
+
+        if not hasattr(
+            self,
+            "recete_secili_urun_adi",
+        ):
+            self.recete_secili_urun_adi = next(
+                iter(self.recete_urun_map)
+            )
+
+        urun_id = int(
+            self.recete_urun_map[
+                self.recete_secili_urun_adi
+            ]
+        )
+
         try:
             (
                 recete,
                 kalemler,
                 proses_suyu_kg,
-            ) = self.recete_verilerini_getir()
+            ) = self.recete_verilerini_getir(
+                urun_id
+            )
 
         except Exception as hata:
             messagebox.showerror(
@@ -9174,6 +9327,42 @@ class RedboxOS(ctk.CTk):
                 str(hata),
             )
             return
+
+        urun_panel = ctk.CTkFrame(
+            self.content,
+            corner_radius=12,
+        )
+        urun_panel.pack(
+            fill="x",
+            padx=45,
+            pady=(0, 12),
+        )
+
+        ctk.CTkLabel(
+            urun_panel,
+            text="Ürün",
+            font=("Arial", 13, "bold"),
+        ).pack(
+            side="left",
+            padx=(18, 10),
+            pady=12,
+        )
+
+        self.recete_urun_secim = ctk.CTkComboBox(
+            urun_panel,
+            values=list(self.recete_urun_map.keys()),
+            width=300,
+            state="readonly",
+            command=self.recete_urun_degisti,
+        )
+        self.recete_urun_secim.pack(
+            side="left",
+            padx=(0, 18),
+            pady=12,
+        )
+        self.recete_urun_secim.set(
+            self.recete_secili_urun_adi
+        )
 
         conn = get_connection()
         try:
@@ -9185,12 +9374,30 @@ class RedboxOS(ctk.CTk):
                     r.gecerlilik_tarihi,
                     r.aktif,
                     r.revizyon_aciklamasi,
-                    p.ad_soyad AS olusturan
+                    p.ad_soyad AS olusturan,
+                    COUNT(ur.id) AS kullanim_sayisi
                 FROM receteler r
                 LEFT JOIN personeller p
                   ON p.id = r.olusturan_personel_id
-                ORDER BY r.id DESC
-            """).fetchall()
+                LEFT JOIN uretim_recete ur
+                  ON ur.recete_id = r.id
+                WHERE r.urun_id = ?
+                GROUP BY
+                    r.id,
+                    r.ad,
+                    r.revizyon_no,
+                    r.gecerlilik_tarihi,
+                    r.aktif,
+                    r.revizyon_aciklamasi,
+                    p.ad_soyad
+                ORDER BY
+                    CAST(r.revizyon_no AS INTEGER) DESC,
+                    r.id DESC
+            """,
+            (
+                urun_id,
+            ),
+            ).fetchall()
         finally:
             conn.close()
 
@@ -9597,29 +9804,74 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkButton(
             islemler,
-            text="+ YENİ HAMMADDE TANIMLA",
+            text="+ HAMMADDE",
             command=self.recete_hammadde_tanimla,
             height=42,
             fg_color="#4B5563",
-            font=("Arial", 13, "bold"),
+            font=("Arial", 12, "bold"),
         ).pack(
             side="left",
             fill="x",
             expand=True,
-            padx=(0, 5),
+            padx=(0, 4),
         )
 
         ctk.CTkButton(
             islemler,
-            text="YENİ REVİZYON OLUŞTUR",
+            text="+ YENİ REVİZYON",
             command=self.recete_revizyon_formu_ac,
             height=42,
-            font=("Arial", 13, "bold"),
+            font=("Arial", 12, "bold"),
         ).pack(
             side="left",
             fill="x",
             expand=True,
-            padx=(5, 0),
+            padx=4,
+        )
+
+        ctk.CTkButton(
+            islemler,
+            text="REVİZYONU DÜZENLE",
+            command=self.recete_revizyon_duzenle,
+            height=42,
+            fg_color="#B7791F",
+            hover_color="#975A16",
+            font=("Arial", 12, "bold"),
+        ).pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=4,
+        )
+
+        ctk.CTkButton(
+            islemler,
+            text="KARŞILAŞTIR",
+            command=self.recete_revizyon_karsilastir,
+            height=42,
+            fg_color="#2563EB",
+            hover_color="#1D4ED8",
+            font=("Arial", 12, "bold"),
+        ).pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=4,
+        )
+
+        ctk.CTkButton(
+            islemler,
+            text="REVİZYONU SİL",
+            command=self.recete_revizyon_sil,
+            height=42,
+            fg_color="#B91C1C",
+            hover_color="#991B1B",
+            font=("Arial", 12, "bold"),
+        ).pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(4, 0),
         )
 
         ctk.CTkLabel(
@@ -9641,79 +9893,147 @@ class RedboxOS(ctk.CTk):
             padx=20,
             pady=(0, 20),
         )
+        gecmis.grid_rowconfigure(0, weight=1)
+        gecmis.grid_columnconfigure(0, weight=1)
 
-        gecmis_basliklari = (
-            "REV",
-            "REÇETE ADI",
-            "GEÇERLİLİK",
-            "DURUM",
-            "OLUŞTURAN",
-            "AÇIKLAMA",
+        style = ttk.Style()
+        style.configure(
+            "RecipeHistory.Treeview",
+            background="#292929",
+            fieldbackground="#292929",
+            foreground="#F3F4F6",
+            rowheight=40,
+            borderwidth=0,
+            relief="flat",
+            font=("Arial", 10),
+        )
+        style.configure(
+            "RecipeHistory.Treeview.Heading",
+            background="#1F2937",
+            foreground="#FFFFFF",
+            relief="flat",
+            font=("Arial", 10, "bold"),
+        )
+        style.map(
+            "RecipeHistory.Treeview",
+            background=[("selected", "#1F6AA5")],
+            foreground=[("selected", "#FFFFFF")],
         )
 
-        for index in range(len(gecmis_basliklari)):
-            gecmis.grid_columnconfigure(
-                index,
-                weight=1,
-                uniform="recipe_history",
+        columns = (
+            "revizyon",
+            "durum",
+            "uretim",
+            "gecerlilik",
+            "olusturan",
+            "aciklama",
+        )
+
+        self.recete_gecmis_tree = ttk.Treeview(
+            gecmis,
+            columns=columns,
+            show="headings",
+            selectmode="browse",
+            height=max(3, min(len(revizyonlar), 8)),
+            style="RecipeHistory.Treeview",
+        )
+
+        headings = (
+            ("revizyon", "REV", 65, "center"),
+            ("durum", "DURUM", 100, "center"),
+            ("uretim", "ÜRETİM", 145, "center"),
+            ("gecerlilik", "GEÇERLİLİK", 105, "center"),
+            ("olusturan", "OLUŞTURAN", 135, "w"),
+            ("aciklama", "AÇIKLAMA", 300, "w"),
+        )
+
+        for column, title, width, anchor in headings:
+            self.recete_gecmis_tree.heading(
+                column,
+                text=title,
+                anchor=anchor,
+            )
+            self.recete_gecmis_tree.column(
+                column,
+                width=width,
+                minwidth=55,
+                anchor=anchor,
+                stretch=True,
             )
 
-        for column, baslik_metni in enumerate(
-            gecmis_basliklari
-        ):
-            ctk.CTkLabel(
-                gecmis,
-                text=baslik_metni,
-                height=38,
-                fg_color="#1F2937",
-                font=("Arial", 10, "bold"),
-                wraplength=170,
-            ).grid(
-                row=0,
-                column=column,
-                sticky="nsew",
-                padx=1,
-                pady=1,
-            )
+        self.recete_gecmis_tree.tag_configure(
+            "even",
+            background="#292929",
+        )
+        self.recete_gecmis_tree.tag_configure(
+            "odd",
+            background="#303030",
+        )
+        self.recete_gecmis_tree.tag_configure(
+            "active",
+            foreground="#86EFAC",
+        )
 
-        for row_index, row in enumerate(
-            revizyonlar,
-            1,
-        ):
-            renk = (
-                "#292929"
-                if row_index % 2
-                else "#303030"
-            )
+        for index, row in enumerate(revizyonlar):
+            tags = [
+                "even" if index % 2 == 0 else "odd",
+            ]
 
-            degerler = (
-                row["revizyon_no"] or "-",
-                row["ad"],
-                row["gecerlilik_tarihi"] or "-",
-                (
-                    "AKTİF"
-                    if int(row["aktif"]) == 1
-                    else "PASİF"
+            if int(row["aktif"]) == 1:
+                tags.append("active")
+
+            self.recete_gecmis_tree.insert(
+                "",
+                "end",
+                iid=str(row["id"]),
+                values=(
+                    row["revizyon_no"] or "-",
+                    (
+                        "🟢 AKTİF"
+                        if int(row["aktif"]) == 1
+                        else "🔒 PASİF"
+                    ),
+                    (
+                        "Henüz kullanılmadı"
+                        if int(row["kullanim_sayisi"] or 0) == 0
+                        else (
+                            f'{int(row["kullanim_sayisi"])} kez kullanıldı'
+                        )
+                    ),
+                    row["gecerlilik_tarihi"] or "-",
+                    row["olusturan"] or "-",
+                    row["revizyon_aciklamasi"] or "-",
                 ),
-                row["olusturan"] or "-",
-                row["revizyon_aciklamasi"] or "-",
+                tags=tuple(tags),
             )
 
-            for column, deger in enumerate(degerler):
-                ctk.CTkLabel(
-                    gecmis,
-                    text=str(deger),
-                    height=40,
-                    fg_color=renk,
-                    font=("Arial", 10),
-                    wraplength=170,
-                ).grid(
-                    row=row_index,
-                    column=column,
-                    sticky="nsew",
-                    padx=1,
-                    pady=1,
-                )
+        scrollbar = ttk.Scrollbar(
+            gecmis,
+            orient="vertical",
+            command=self.recete_gecmis_tree.yview,
+        )
+        self.recete_gecmis_tree.configure(
+            yscrollcommand=scrollbar.set,
+        )
+
+        self.recete_gecmis_tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+        )
+
+        if revizyonlar:
+            self.recete_gecmis_tree.selection_set(
+                str(revizyonlar[0]["id"])
+            )
+            self.recete_gecmis_tree.focus(
+                str(revizyonlar[0]["id"])
+            )
 
 
     def recete_hammadde_tanimla(self):
@@ -9959,9 +10279,16 @@ class RedboxOS(ctk.CTk):
 
         self.recete()
 
-    def recete_revizyon_no_uret(self, conn):
+    def recete_revizyon_no_uret(self, conn, urun_id):
         rows = conn.execute(
-            "SELECT revizyon_no FROM receteler"
+            """
+            SELECT revizyon_no
+            FROM receteler
+            WHERE urun_id = ?
+            """,
+            (
+                int(urun_id),
+            ),
         ).fetchall()
 
         sayilar = []
@@ -9986,18 +10313,29 @@ class RedboxOS(ctk.CTk):
         try:
             conn = get_connection()
 
+            urun_id = int(
+                self.recete_urun_map[
+                    self.recete_secili_urun_adi
+                ]
+            )
+
             recete = conn.execute(
                 """
                 SELECT
                     id,
                     ad,
                     parti_teorik_kg,
-                    revizyon_no
+                    revizyon_no,
+                    urun_id
                 FROM receteler
                 WHERE aktif = 1
+                  AND urun_id = ?
                 ORDER BY id DESC
                 LIMIT 1
-                """
+                """,
+                (
+                    urun_id,
+                ),
             ).fetchone()
 
             if recete is None:
@@ -10033,7 +10371,10 @@ class RedboxOS(ctk.CTk):
             ).fetchall()
 
             yeni_revizyon_no = (
-                self.recete_revizyon_no_uret(conn)
+                self.recete_revizyon_no_uret(
+                    conn,
+                    int(recete["urun_id"]),
+                )
             )
 
         finally:
@@ -10246,6 +10587,7 @@ class RedboxOS(ctk.CTk):
         self.recete_revizyon_form_state = {
             "pencere": pencere,
             "kaynak_recete_id": int(recete["id"]),
+            "urun_id": int(recete["urun_id"]),
             "yeni_revizyon_no": yeni_revizyon_no,
             "ad_entry": ad_entry,
             "tarih_entry": tarih_entry,
@@ -10363,14 +10705,19 @@ class RedboxOS(ctk.CTk):
                 """
                 SELECT
                     id,
-                    parti_teorik_kg
+                    parti_teorik_kg,
+                    urun_id,
+                    revizyon_no,
+                    gecerlilik_tarihi
                 FROM receteler
                 WHERE id = ?
+                  AND urun_id = ?
                   AND aktif = 1
                 LIMIT 1
                 """,
                 (
                     state["kaynak_recete_id"],
+                    state["urun_id"],
                 ),
             ).fetchone()
 
@@ -10463,7 +10810,10 @@ class RedboxOS(ctk.CTk):
                 )
 
             yeni_revizyon_no = (
-                self.recete_revizyon_no_uret(conn)
+                self.recete_revizyon_no_uret(
+                    conn,
+                    int(kaynak["urun_id"]),
+                )
             )
 
             if (
@@ -10479,10 +10829,12 @@ class RedboxOS(ctk.CTk):
                 UPDATE receteler
                 SET aktif = 0
                 WHERE id = ?
+                  AND urun_id = ?
                   AND aktif = 1
                 """,
                 (
                     kaynak["id"],
+                    kaynak["urun_id"],
                 ),
             )
 
@@ -10500,9 +10852,10 @@ class RedboxOS(ctk.CTk):
                     revizyon_no,
                     gecerlilik_tarihi,
                     revizyon_aciklamasi,
-                    olusturan_personel_id
+                    olusturan_personel_id,
+                    urun_id
                 )
-                VALUES (?, ?, 1, ?, ?, ?, ?)
+                VALUES (?, ?, 1, ?, ?, ?, ?, ?)
                 """,
                 (
                     ad,
@@ -10511,6 +10864,7 @@ class RedboxOS(ctk.CTk):
                     tarih,
                     aciklama,
                     personel["id"],
+                    kaynak["urun_id"],
                 ),
             )
 
@@ -10541,7 +10895,11 @@ class RedboxOS(ctk.CTk):
                 SELECT COUNT(*)
                 FROM receteler
                 WHERE aktif = 1
-                """
+                  AND urun_id = ?
+                """,
+                (
+                    kaynak["urun_id"],
+                ),
             ).fetchone()[0]
 
             yeni_kalem_sayisi = conn.execute(
@@ -10650,6 +11008,969 @@ class RedboxOS(ctk.CTk):
         self.recete()
 
 
+    def recete_secili_revizyon_id_getir(self):
+        tree = getattr(
+            self,
+            "recete_gecmis_tree",
+            None,
+        )
+
+        if tree is None:
+            messagebox.showwarning(
+                "Revizyon Seçimi",
+                "Revizyon geçmişi tablosu bulunamadı.",
+            )
+            return None
+
+        secim = tree.selection()
+
+        if not secim:
+            messagebox.showwarning(
+                "Revizyon Seçimi",
+                "İşlem yapılacak revizyonu seçin.",
+            )
+            return None
+
+        return int(secim[0])
+
+
+    def recete_revizyon_kullanildi_mi(
+        self,
+        conn,
+        recete_id,
+    ):
+        return bool(
+            conn.execute(
+                """
+                SELECT 1
+                FROM uretim_recete
+                WHERE recete_id = ?
+                LIMIT 1
+                """,
+                (recete_id,),
+            ).fetchone()
+        )
+
+
+    def recete_revizyon_duzenle(self):
+        recete_id = (
+            self.recete_secili_revizyon_id_getir()
+        )
+
+        if recete_id is None:
+            return
+
+        conn = None
+
+        try:
+            conn = get_connection()
+
+            if self.recete_revizyon_kullanildi_mi(
+                conn,
+                recete_id,
+            ):
+                messagebox.showwarning(
+                    "Düzenleme Engellendi",
+                    (
+                        "Bu revizyon üretimde kullanılmıştır. "
+                        "Değişiklik için yeni revizyon oluşturun."
+                    ),
+                )
+                return
+
+        finally:
+            if conn is not None:
+                conn.close()
+
+        self.recete_revizyon_duzenleme_formu_ac(
+            recete_id
+        )
+
+
+    def recete_revizyon_duzenleme_formu_ac(
+        self,
+        recete_id,
+    ):
+        if not self.formul_erisim_kontrolu():
+            return
+
+        conn = None
+
+        try:
+            conn = get_connection()
+
+            recete = conn.execute(
+                """
+                SELECT
+                    id,
+                    ad,
+                    parti_teorik_kg,
+                    revizyon_no,
+                    gecerlilik_tarihi,
+                    revizyon_aciklamasi,
+                    olusturan_personel_id,
+                    urun_id
+                FROM receteler
+                WHERE id = ?
+                LIMIT 1
+                """,
+                (recete_id,),
+            ).fetchone()
+
+            if recete is None:
+                raise RuntimeError(
+                    "Seçilen revizyon bulunamadı."
+                )
+
+            if self.recete_revizyon_kullanildi_mi(
+                conn,
+                recete_id,
+            ):
+                raise RuntimeError(
+                    "Üretimde kullanılmış revizyon düzenlenemez."
+                )
+
+            kalemler = conn.execute(
+                """
+                SELECT
+                    h.id AS hammadde_id,
+                    h.ad,
+                    COALESCE(rk.miktar_kg, 0) AS miktar_kg
+                FROM hammaddeler h
+                LEFT JOIN recete_kalemleri rk
+                  ON rk.hammadde_id = h.id
+                 AND rk.recete_id = ?
+                WHERE h.aktif = 1
+                ORDER BY
+                    CASE WHEN rk.id IS NULL THEN 1 ELSE 0 END,
+                    COALESCE(rk.id, h.id)
+                """,
+                (recete_id,),
+            ).fetchall()
+
+            personeller = conn.execute(
+                """
+                SELECT
+                    id,
+                    ad_soyad
+                FROM personeller
+                WHERE aktif = 1
+                ORDER BY ad_soyad COLLATE NOCASE
+                """
+            ).fetchall()
+
+        except Exception as hata:
+            messagebox.showerror(
+                "Düzenleme Hatası",
+                str(hata),
+            )
+            return
+
+        finally:
+            if conn is not None:
+                conn.close()
+
+        personel_map = {
+            row["ad_soyad"]: int(row["id"])
+            for row in personeller
+        }
+
+        pencere = ctk.CTkToplevel(self)
+        pencere.title("Reçete Revizyonunu Düzenle")
+        pencere.geometry("760x820")
+        pencere.minsize(700, 700)
+        pencere.transient(self)
+        pencere.grab_set()
+
+        govde = ctk.CTkScrollableFrame(
+            pencere,
+            corner_radius=12,
+        )
+        govde.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=20,
+        )
+
+        ctk.CTkLabel(
+            govde,
+            text=(
+                "REÇETE REVİZYONUNU DÜZENLE — "
+                f'{recete["revizyon_no"]}'
+            ),
+            font=("Arial", 22, "bold"),
+        ).pack(
+            anchor="w",
+            padx=15,
+            pady=(15, 15),
+        )
+
+        ctk.CTkLabel(
+            govde,
+            text="Reçete Adı",
+            font=("Arial", 13, "bold"),
+        ).pack(anchor="w", padx=15, pady=(5, 3))
+
+        ad_entry = ctk.CTkEntry(govde, height=38)
+        ad_entry.pack(fill="x", padx=15, pady=(0, 10))
+        ad_entry.insert(0, recete["ad"])
+
+        ctk.CTkLabel(
+            govde,
+            text="Geçerlilik Tarihi (GG.AA.YYYY)",
+            font=("Arial", 13, "bold"),
+        ).pack(anchor="w", padx=15, pady=(5, 3))
+
+        tarih_entry = ctk.CTkEntry(govde, height=38)
+        tarih_entry.pack(fill="x", padx=15, pady=(0, 10))
+        tarih_entry.insert(
+            0,
+            recete["gecerlilik_tarihi"] or "",
+        )
+
+        ctk.CTkLabel(
+            govde,
+            text="Revizyon Açıklaması",
+            font=("Arial", 13, "bold"),
+        ).pack(anchor="w", padx=15, pady=(5, 3))
+
+        aciklama_entry = ctk.CTkEntry(
+            govde,
+            height=38,
+        )
+        aciklama_entry.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 10),
+        )
+        aciklama_entry.insert(
+            0,
+            recete["revizyon_aciklamasi"] or "",
+        )
+
+        personel_adlari = list(personel_map)
+
+        ctk.CTkLabel(
+            govde,
+            text="Oluşturan Personel",
+            font=("Arial", 13, "bold"),
+        ).pack(anchor="w", padx=15, pady=(5, 3))
+
+        personel_secim = ctk.CTkComboBox(
+            govde,
+            values=personel_adlari,
+            height=38,
+            state="readonly",
+        )
+        personel_secim.pack(
+            fill="x",
+            padx=15,
+            pady=(0, 15),
+        )
+
+        mevcut_personel = next(
+            (
+                ad
+                for ad, personel_id in personel_map.items()
+                if personel_id
+                == recete["olusturan_personel_id"]
+            ),
+            personel_adlari[0],
+        )
+        personel_secim.set(mevcut_personel)
+
+        ctk.CTkLabel(
+            govde,
+            text="1 PARTİ REÇETE KALEMLERİ",
+            font=("Arial", 16, "bold"),
+        ).pack(
+            anchor="w",
+            padx=15,
+            pady=(10, 8),
+        )
+
+        miktar_entryleri = {}
+
+        for kalem in kalemler:
+            satir = ctk.CTkFrame(govde)
+            satir.pack(
+                fill="x",
+                padx=15,
+                pady=3,
+            )
+            satir.grid_columnconfigure(0, weight=1)
+
+            ctk.CTkLabel(
+                satir,
+                text=kalem["ad"],
+                font=("Arial", 13),
+            ).grid(
+                row=0,
+                column=0,
+                sticky="w",
+                padx=12,
+                pady=8,
+            )
+
+            entry = ctk.CTkEntry(
+                satir,
+                width=130,
+                height=34,
+            )
+            entry.grid(
+                row=0,
+                column=1,
+                padx=12,
+                pady=8,
+            )
+            entry.insert(
+                0,
+                f'{float(kalem["miktar_kg"]):.3f}',
+            )
+
+            miktar_entryleri[
+                int(kalem["hammadde_id"])
+            ] = entry
+
+        ctk.CTkButton(
+            govde,
+            text="DEĞİŞİKLİKLERİ KAYDET",
+            command=self.recete_revizyon_duzenleme_kaydet,
+            height=44,
+            font=("Arial", 14, "bold"),
+        ).pack(
+            fill="x",
+            padx=15,
+            pady=(15, 20),
+        )
+
+        self.recete_duzenleme_form_state = {
+            "pencere": pencere,
+            "recete_id": int(recete["id"]),
+            "parti_teorik_kg": float(
+                recete["parti_teorik_kg"]
+            ),
+            "ad_entry": ad_entry,
+            "tarih_entry": tarih_entry,
+            "aciklama_entry": aciklama_entry,
+            "personel_secim": personel_secim,
+            "personel_map": personel_map,
+            "miktar_entryleri": miktar_entryleri,
+        }
+
+
+    def recete_revizyon_duzenleme_kaydet(self):
+        state = getattr(
+            self,
+            "recete_duzenleme_form_state",
+            None,
+        )
+
+        if not state:
+            return
+
+        ad = state["ad_entry"].get().strip()
+        tarih = state["tarih_entry"].get().strip()
+        aciklama = (
+            state["aciklama_entry"].get().strip()
+        )
+        personel_adi = (
+            state["personel_secim"].get().strip()
+        )
+
+        if not ad or not tarih or not aciklama:
+            messagebox.showwarning(
+                "Eksik Bilgi",
+                "Ad, tarih ve açıklama zorunludur.",
+            )
+            return
+
+        try:
+            datetime.strptime(tarih, "%d.%m.%Y")
+
+            miktarlar = {}
+
+            for hammadde_id, entry in (
+                state["miktar_entryleri"].items()
+            ):
+                metin = (
+                    entry.get()
+                    .strip()
+                    .replace(",", ".")
+                )
+                miktar = float(metin) if metin else 0.0
+
+                if miktar < 0:
+                    raise ValueError(
+                        "Miktar negatif olamaz."
+                    )
+
+                if miktar > 0:
+                    miktarlar[hammadde_id] = miktar
+
+        except ValueError as hata:
+            messagebox.showwarning(
+                "Veri Hatası",
+                str(hata),
+            )
+            return
+
+        conn = None
+
+        try:
+            conn = get_connection()
+            conn.execute("BEGIN IMMEDIATE")
+
+            if self.recete_revizyon_kullanildi_mi(
+                conn,
+                state["recete_id"],
+            ):
+                raise RuntimeError(
+                    "Revizyon üretimde kullanılmış; "
+                    "düzenleme iptal edildi."
+                )
+
+            ayar = conn.execute(
+                """
+                SELECT deger
+                FROM sistem_ayarlari
+                WHERE anahtar = 'PARTI_PROSES_SUYU_KG'
+                LIMIT 1
+                """
+            ).fetchone()
+
+            if ayar is None:
+                raise RuntimeError(
+                    "Proses suyu ayarı bulunamadı."
+                )
+
+            toplam = (
+                sum(miktarlar.values())
+                + float(ayar["deger"])
+            )
+
+            if abs(
+                toplam - state["parti_teorik_kg"]
+            ) >= 0.000001:
+                raise RuntimeError(
+                    "Kütle dengesi uyumsuz. "
+                    f"Hesaplanan: {toplam:.3f} kg"
+                )
+
+            personel_id = state["personel_map"].get(
+                personel_adi
+            )
+
+            if personel_id is None:
+                raise RuntimeError(
+                    "Personel seçimi geçersiz."
+                )
+
+            eski = conn.execute(
+                """
+                SELECT *
+                FROM receteler
+                WHERE id = ?
+                """,
+                (state["recete_id"],),
+            ).fetchone()
+
+            conn.execute(
+                """
+                UPDATE receteler
+                SET
+                    ad = ?,
+                    gecerlilik_tarihi = ?,
+                    revizyon_aciklamasi = ?,
+                    olusturan_personel_id = ?
+                WHERE id = ?
+                """,
+                (
+                    ad,
+                    tarih,
+                    aciklama,
+                    personel_id,
+                    state["recete_id"],
+                ),
+            )
+
+            conn.execute(
+                """
+                DELETE FROM recete_kalemleri
+                WHERE recete_id = ?
+                """,
+                (state["recete_id"],),
+            )
+
+            for hammadde_id, miktar in (
+                miktarlar.items()
+            ):
+                conn.execute(
+                    """
+                    INSERT INTO recete_kalemleri (
+                        recete_id,
+                        hammadde_id,
+                        miktar_kg
+                    )
+                    VALUES (?, ?, ?)
+                    """,
+                    (
+                        state["recete_id"],
+                        hammadde_id,
+                        miktar,
+                    ),
+                )
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="RECETE",
+                islem="GUNCELLEME",
+                kullanici=self.current_user,
+                kayit_turu="receteler",
+                kayit_id=state["recete_id"],
+                aciklama=(
+                    "Üretimde kullanılmamış reçete "
+                    "revizyonu düzenlendi."
+                ),
+                eski_deger=dict(eski),
+                yeni_deger={
+                    "ad": ad,
+                    "gecerlilik_tarihi": tarih,
+                    "revizyon_aciklamasi": aciklama,
+                    "olusturan_personel_id": personel_id,
+                    "kalem_sayisi": len(miktarlar),
+                },
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
+
+            conn.commit()
+
+        except Exception as hata:
+            if conn is not None:
+                conn.rollback()
+
+            messagebox.showerror(
+                "Düzenleme Kaydedilemedi",
+                str(hata),
+            )
+            return
+
+        finally:
+            if conn is not None:
+                conn.close()
+
+        pencere = state["pencere"]
+
+        if pencere.winfo_exists():
+            pencere.destroy()
+
+        self.recete_duzenleme_form_state = None
+
+        messagebox.showinfo(
+            "Revizyon Güncellendi",
+            "Değişiklikler başarıyla kaydedildi.",
+        )
+
+        self.recete()
+
+
+    def recete_revizyon_karsilastir(self):
+        recete_id = self.recete_secili_revizyon_id_getir()
+
+        if recete_id is None:
+            messagebox.showwarning(
+                "Karşılaştırma",
+                "Karşılaştırılacak revizyonu seçin.",
+            )
+            return
+
+        conn = None
+
+        try:
+            conn = get_connection()
+
+            secili = conn.execute(
+                """
+                SELECT
+                    id,
+                    urun_id,
+                    ad,
+                    revizyon_no,
+                    gecerlilik_tarihi,
+                    aktif
+                FROM receteler
+                WHERE id = ?
+                LIMIT 1
+                """,
+                (recete_id,),
+            ).fetchone()
+
+            if secili is None:
+                raise RuntimeError(
+                    "Seçilen revizyon bulunamadı."
+                )
+
+            onceki = conn.execute(
+                """
+                SELECT
+                    id,
+                    urun_id,
+                    ad,
+                    revizyon_no,
+                    gecerlilik_tarihi,
+                    aktif
+                FROM receteler
+                WHERE urun_id = ?
+                  AND (
+                        CAST(revizyon_no AS INTEGER)
+                        <
+                        CAST(? AS INTEGER)
+                      )
+                ORDER BY
+                    CAST(revizyon_no AS INTEGER) DESC,
+                    id DESC
+                LIMIT 1
+                """,
+                (
+                    secili["urun_id"],
+                    secili["revizyon_no"],
+                ),
+            ).fetchone()
+
+            if onceki is None:
+                raise RuntimeError(
+                    "Seçilen revizyondan daha eski bir revizyon "
+                    "bulunamadı."
+                )
+
+            satirlar = conn.execute(
+                """
+                SELECT
+                    h.id AS hammadde_id,
+                    h.ad AS hammadde,
+                    COALESCE(eski.miktar_kg, 0) AS eski_miktar,
+                    COALESCE(yeni.miktar_kg, 0) AS yeni_miktar
+                FROM hammaddeler h
+                LEFT JOIN recete_kalemleri eski
+                  ON eski.hammadde_id = h.id
+                 AND eski.recete_id = ?
+                LEFT JOIN recete_kalemleri yeni
+                  ON yeni.hammadde_id = h.id
+                 AND yeni.recete_id = ?
+                WHERE eski.id IS NOT NULL
+                   OR yeni.id IS NOT NULL
+                ORDER BY
+                    COALESCE(yeni.id, eski.id, h.id)
+                """,
+                (
+                    onceki["id"],
+                    secili["id"],
+                ),
+            ).fetchall()
+
+        except Exception as hata:
+            messagebox.showerror(
+                "Karşılaştırma Hatası",
+                str(hata),
+            )
+            return
+
+        finally:
+            if conn is not None:
+                conn.close()
+
+        pencere = ctk.CTkToplevel(self)
+        pencere.title("Reçete Revizyon Karşılaştırması")
+        pencere.geometry("920x620")
+        pencere.minsize(820, 520)
+        pencere.grab_set()
+
+        ctk.CTkLabel(
+            pencere,
+            text="REÇETE REVİZYON KARŞILAŞTIRMASI",
+            font=("Arial", 20, "bold"),
+        ).pack(pady=(18, 6))
+
+        ctk.CTkLabel(
+            pencere,
+            text=(
+                f'ESKİ: Rev.{onceki["revizyon_no"]}  |  '
+                f'YENİ: Rev.{secili["revizyon_no"]}'
+            ),
+            font=("Arial", 14, "bold"),
+        ).pack(pady=(0, 14))
+
+        tablo_frame = ctk.CTkFrame(pencere)
+        tablo_frame.pack(
+            fill="both",
+            expand=True,
+            padx=18,
+            pady=(0, 12),
+        )
+
+        columns = (
+            "hammadde",
+            "eski",
+            "yeni",
+            "fark",
+            "durum",
+        )
+
+        tablo = ttk.Treeview(
+            tablo_frame,
+            columns=columns,
+            show="headings",
+            selectmode="browse",
+        )
+
+        basliklar = (
+            ("hammadde", "HAMMADDE", 300, "w"),
+            (
+                "eski",
+                f'REV.{onceki["revizyon_no"]} (kg)',
+                130,
+                "e",
+            ),
+            (
+                "yeni",
+                f'REV.{secili["revizyon_no"]} (kg)',
+                130,
+                "e",
+            ),
+            ("fark", "FARK (kg)", 120, "e"),
+            ("durum", "DEĞİŞİM", 130, "center"),
+        )
+
+        for kolon, baslik, genislik, hizalama in basliklar:
+            tablo.heading(kolon, text=baslik)
+            tablo.column(
+                kolon,
+                width=genislik,
+                anchor=hizalama,
+            )
+
+        scrollbar = ttk.Scrollbar(
+            tablo_frame,
+            orient="vertical",
+            command=tablo.yview,
+        )
+        tablo.configure(yscrollcommand=scrollbar.set)
+
+        tablo.pack(
+            side="left",
+            fill="both",
+            expand=True,
+            padx=(8, 0),
+            pady=8,
+        )
+        scrollbar.pack(
+            side="right",
+            fill="y",
+            padx=(0, 8),
+            pady=8,
+        )
+
+        eski_toplam = 0.0
+        yeni_toplam = 0.0
+
+        for row in satirlar:
+            eski = float(row["eski_miktar"] or 0)
+            yeni = float(row["yeni_miktar"] or 0)
+            fark = yeni - eski
+
+            eski_toplam += eski
+            yeni_toplam += yeni
+
+            if fark > 0.0000001:
+                durum = "ARTTI"
+            elif fark < -0.0000001:
+                durum = "AZALDI"
+            else:
+                durum = "DEĞİŞMEDİ"
+
+            tablo.insert(
+                "",
+                "end",
+                values=(
+                    row["hammadde"],
+                    f"{eski:.3f}",
+                    f"{yeni:.3f}",
+                    f"{fark:+.3f}",
+                    durum,
+                ),
+            )
+
+        toplam_fark = yeni_toplam - eski_toplam
+
+        ctk.CTkLabel(
+            pencere,
+            text=(
+                f"ESKİ PARTİ TOPLAMI: {eski_toplam:.3f} kg    |    "
+                f"YENİ PARTİ TOPLAMI: {yeni_toplam:.3f} kg    |    "
+                f"FARK: {toplam_fark:+.3f} kg"
+            ),
+            font=("Arial", 14, "bold"),
+        ).pack(pady=(0, 12))
+
+        ctk.CTkButton(
+            pencere,
+            text="KAPAT",
+            command=pencere.destroy,
+            width=160,
+            height=40,
+            font=("Arial", 12, "bold"),
+        ).pack(pady=(0, 18))
+
+    def recete_revizyon_sil(self):
+        if not self.formul_erisim_kontrolu():
+            return
+
+        recete_id = (
+            self.recete_secili_revizyon_id_getir()
+        )
+
+        if recete_id is None:
+            return
+
+        conn = None
+
+        try:
+            conn = get_connection()
+
+            recete = conn.execute(
+                """
+                SELECT
+                    id,
+                    ad,
+                    revizyon_no,
+                    aktif,
+                    urun_id
+                FROM receteler
+                WHERE id = ?
+                LIMIT 1
+                """,
+                (recete_id,),
+            ).fetchone()
+
+            if recete is None:
+                messagebox.showerror(
+                    "Silme Hatası",
+                    "Seçilen revizyon bulunamadı.",
+                )
+                return
+
+            if self.recete_revizyon_kullanildi_mi(
+                conn,
+                recete_id,
+            ):
+                messagebox.showwarning(
+                    "Silme Engellendi",
+                    (
+                        "Bu revizyon üretimde kullanılmıştır "
+                        "ve silinemez."
+                    ),
+                )
+                return
+
+            if int(recete["aktif"]) == 1:
+                messagebox.showwarning(
+                    "Silme Engellendi",
+                    (
+                        "Aktif revizyon doğrudan silinemez. "
+                        "Önce yeni revizyon oluşturun."
+                    ),
+                )
+                return
+
+            onay = messagebox.askyesno(
+                "Revizyonu Sil",
+                (
+                    f'{recete["ad"]}\n'
+                    f'Revizyon: {recete["revizyon_no"]}\n\n'
+                    "Kalıcı olarak silinsin mi?"
+                ),
+            )
+
+            if not onay:
+                return
+
+            conn.execute("BEGIN IMMEDIATE")
+
+            conn.execute(
+                """
+                DELETE FROM recete_kalemleri
+                WHERE recete_id = ?
+                """,
+                (recete_id,),
+            )
+
+            cursor = conn.execute(
+                """
+                DELETE FROM receteler
+                WHERE id = ?
+                  AND aktif = 0
+                """,
+                (recete_id,),
+            )
+
+            if cursor.rowcount != 1:
+                raise RuntimeError(
+                    "Revizyon silinemedi."
+                )
+
+            denetim_kaydi_ekle(
+                conn,
+                modul="RECETE",
+                islem="SILME",
+                kullanici=self.current_user,
+                kayit_turu="receteler",
+                kayit_id=recete_id,
+                aciklama=(
+                    "Üretimde kullanılmamış pasif "
+                    "reçete revizyonu silindi."
+                ),
+                eski_deger={
+                    "id": recete_id,
+                    "ad": recete["ad"],
+                    "revizyon_no": (
+                        recete["revizyon_no"]
+                    ),
+                    "urun_id": recete["urun_id"],
+                    "aktif": False,
+                },
+                yeni_deger=None,
+                oturum_id=self.current_user.get(
+                    "oturum_id"
+                ),
+            )
+
+            conn.commit()
+
+        except Exception as hata:
+            if conn is not None:
+                conn.rollback()
+
+            messagebox.showerror(
+                "Revizyon Silinemedi",
+                str(hata),
+            )
+            return
+
+        finally:
+            if conn is not None:
+                conn.close()
+
+        messagebox.showinfo(
+            "Revizyon Silindi",
+            "Seçilen revizyon başarıyla silindi.",
+        )
+
+        self.recete()
+
+
     def aktif_personelleri_getir(self):
         conn = None
 
@@ -10678,6 +11999,9 @@ class RedboxOS(ctk.CTk):
 
 
     def personel(self):
+        if not self.yetki_kontrolu("PERSONEL", "Personel"):
+            return
+
         self.show_page(
             "PERSONEL",
             "Personel ve görev / yetki yönetimi"
@@ -10837,6 +12161,7 @@ class RedboxOS(ctk.CTk):
         self.personel_yetki_secim.grid(
             row=2,
             column=0,
+            columnspan=5,
             sticky="ew",
             padx=15,
             pady=(0, 15),
@@ -10845,30 +12170,38 @@ class RedboxOS(ctk.CTk):
         self.personel_yetki_vars = {}
 
         yetkiler = [
-            ("URETIM", "Üretim"),
-            ("TEMIZLIK", "Temizlik"),
             ("DEPO_KABUL", "Depo Kabul"),
+            ("URETIM", "Üretim"),
             ("PAKETLEME", "Paketleme"),
             ("SEVKIYAT", "Sevkiyat"),
+            ("TEMIZLIK", "Temizlik"),
+            ("STOK", "Stok"),
+            ("IZLENEBILIRLIK", "İzlenebilirlik"),
+            ("KALITE", "Kalite"),
+            ("PERSONEL", "Personel"),
+            ("SISTEM", "Sistem"),
         ]
 
         for index, (
             yetki_kodu,
             yetki_adi,
-        ) in enumerate(yetkiler, 1):
+        ) in enumerate(yetkiler):
             var = ctk.BooleanVar(value=False)
             self.personel_yetki_vars[yetki_kodu] = var
+
+            row = 3 + (index // 5)
+            column = index % 5
 
             ctk.CTkCheckBox(
                 yetki_frame,
                 text=yetki_adi,
                 variable=var,
             ).grid(
-                row=2,
-                column=index,
+                row=row,
+                column=column,
                 sticky="w",
-                padx=10,
-                pady=(0, 15),
+                padx=15,
+                pady=(4, 10),
             )
 
         ctk.CTkButton(
@@ -10878,18 +12211,19 @@ class RedboxOS(ctk.CTk):
             height=40,
             font=("Arial", 13, "bold"),
         ).grid(
-            row=3,
+            row=5,
             column=0,
-            columnspan=6,
+            columnspan=2,
             sticky="ew",
             padx=15,
-            pady=(0, 15),
+            pady=(8, 15),
         )
 
-        for column in range(6):
+        for column in range(5):
             yetki_frame.grid_columnconfigure(
                 column,
                 weight=1,
+                uniform="permission_columns",
             )
 
         ust = ctk.CTkFrame(
@@ -11814,6 +13148,11 @@ class RedboxOS(ctk.CTk):
             "DEPO_KABUL": "Depo Kabul",
             "PAKETLEME": "Paketleme",
             "SEVKIYAT": "Sevkiyat",
+            "STOK": "Stok",
+            "IZLENEBILIRLIK": "İzlenebilirlik",
+            "KALITE": "Kalite",
+            "PERSONEL": "Personel",
+            "SISTEM": "Sistem",
         }
 
         for index, row in enumerate(rows):
@@ -11885,9 +13224,15 @@ class RedboxOS(ctk.CTk):
         )
 
     def kalite(self):
+        if not self.yetki_kontrolu("KALITE", "Kalite"):
+            return
+
         QualityPage(self).create()
 
     def sistem(self):
+        if not self.yetki_kontrolu("SISTEM", "Sistem"):
+            return
+
         SystemPage(self).create()
 
 

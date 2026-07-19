@@ -597,38 +597,16 @@ def init_database():
             ))
 
     personel_yetki_seed = [
-        (
-            "Eda Ayaz",
-            "PAKETLEME",
-        ),
-        (
-            "Eda Ayaz",
-            "TEMIZLIK",
-        ),
-        (
-            "Eda Ayaz",
-            "URETIM",
-        ),
-        (
-            "Fatih Ayaz",
-            "DEPO_KABUL",
-        ),
-        (
-            "Fatih Ayaz",
-            "PAKETLEME",
-        ),
-        (
-            "Fatih Ayaz",
-            "SEVKIYAT",
-        ),
-        (
-            "Fatih Ayaz",
-            "TEMIZLIK",
-        ),
-        (
-            "Fatih Ayaz",
-            "URETIM",
-        ),
+        ("Fatih Ayaz", "DEPO_KABUL"),
+        ("Fatih Ayaz", "PAKETLEME"),
+        ("Fatih Ayaz", "SEVKIYAT"),
+        ("Fatih Ayaz", "TEMIZLIK"),
+        ("Fatih Ayaz", "URETIM"),
+        ("Fatih Ayaz", "STOK"),
+        ("Fatih Ayaz", "IZLENEBILIRLIK"),
+        ("Fatih Ayaz", "KALITE"),
+        ("Fatih Ayaz", "PERSONEL"),
+        ("Fatih Ayaz", "SISTEM"),
     ]
 
     for ad_soyad, yetki_kodu in personel_yetki_seed:
