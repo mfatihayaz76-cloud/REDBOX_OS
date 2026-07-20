@@ -16,6 +16,14 @@ from database.first_setup_engine import (
     uygulama_kimligini_getir,
 )
 from ui.first_setup_wizard import FirstSetupWizard
+from ui.company_profile_window import CompanyProfileWindow
+from ui.license_center_window import LicenseCenterWindow
+from database.licensing_engine import (
+    cihaz_parmak_izi_olustur,
+    lisans_acik_anahtarlarini_yukle,
+    lisans_erisim_karari,
+    lisans_talep_bilgilerini_getir,
+)
 
 
 PBKDF2_ITERATIONS = 600_000
@@ -37,6 +45,9 @@ class LoginWindow(ctk.CTk):
         self.authenticated_user = None
         self.oturum_id = yeni_oturum_id()
         self.application_context = self._uygulama_kimligi()
+        self.license_device = None
+        self.license_public_keys = None
+        self.license_decision = self._lisans_erisim_karari()
         self.title(
             "REDBOX OS — "
             f"{self.application_context['firma_kisa_ad']} — Giriş"
@@ -181,6 +192,70 @@ class LoginWindow(ctk.CTk):
             conn.close()
 
 
+    def _lisans_erisim_karari(self):
+        try:
+            self.license_device = cihaz_parmak_izi_olustur()
+            self.license_public_keys = (
+                lisans_acik_anahtarlarini_yukle()
+            )
+            conn = get_connection()
+            try:
+                return lisans_erisim_karari(
+                    conn,
+                    self.license_public_keys,
+                    self.license_device[
+                        "cihaz_parmak_izi_sha256"
+                    ],
+                )
+            finally:
+                conn.close()
+        except Exception as exc:
+            return {
+                "erisim_izni": False,
+                "gecerli": False,
+                "durum": "LISANS_KONTROL_HATASI",
+                "neden_kodu": type(exc).__name__,
+                "akis": "LISANS_AKTIVASYONU",
+                "aciklama": str(exc),
+            }
+
+    def _lisans_kararini_yenile(self):
+        self.license_decision = self._lisans_erisim_karari()
+        return self.license_decision
+
+    def _lisans_tamamlama_akisi(self, authenticated_user):
+        conn = get_connection()
+        try:
+            request = lisans_talep_bilgilerini_getir(
+                conn,
+                cihaz_bilgisi=self.license_device,
+            )
+        finally:
+            conn.close()
+
+        if not request.get("hazir"):
+            company_window = CompanyProfileWindow(
+                self,
+                kullanici=authenticated_user,
+                oturum_id=self.oturum_id,
+            )
+            self.wait_window(company_window)
+
+        decision = self._lisans_kararini_yenile()
+
+        if decision.get("erisim_izni"):
+            return True
+
+        license_window = LicenseCenterWindow(
+            self,
+            kullanici=authenticated_user,
+            oturum_id=self.oturum_id,
+        )
+        self.wait_window(license_window)
+
+        decision = self._lisans_kararini_yenile()
+        return bool(decision.get("erisim_izni"))
+
     def _formu_temizle(self):
         for widget in self.form.winfo_children():
             widget.destroy()
@@ -224,6 +299,7 @@ class LoginWindow(ctk.CTk):
 
     def _kurulum_tamamlandi(self, _result):
         self.application_context = self._uygulama_kimligi()
+        self._lisans_kararini_yenile()
         self._kimlik_etiketlerini_guncelle()
         self._window_width = 520
         self._window_height = 650
@@ -241,6 +317,22 @@ class LoginWindow(ctk.CTk):
             "GÜVENLİ GİRİŞ",
             "REDBOX OS yönetim paneline giriş yapın.",
         )
+
+        if self.license_decision.get("durum") == "GECIS_SURESI":
+            ctk.CTkLabel(
+                self.form,
+                text=(
+                    "LİSANS GEÇİŞ SÜRESİ: "
+                    + str(self.license_decision.get("kalan_gun", 0))
+                    + " gün kaldı"
+                ),
+                font=("Arial", 11, "bold"),
+                text_color="#F59E0B",
+            ).grid(
+                row=6,
+                column=0,
+                pady=(8, 0),
+            )
 
         self.kullanici_entry = ctk.CTkEntry(
             self.form,
@@ -389,6 +481,33 @@ class LoginWindow(ctk.CTk):
                 self.application_context
             )
 
+            current_license = self._lisans_kararini_yenile()
+
+            if not current_license.get("erisim_izni"):
+                if not self._lisans_tamamlama_akisi(
+                    authenticated_user
+                ):
+                    messagebox.showerror(
+                        "Lisans Aktivasyonu Gerekli",
+                        (
+                            "REDBOX OS erişimi için firma profilini "
+                            "tamamlayın ve geçerli imzalı lisansı "
+                            "aktive edin.\n\nNeden kodu: "
+                            + self.license_decision.get(
+                                "neden_kodu",
+                                "LISANS_GEREKLI",
+                            )
+                        ),
+                        parent=self,
+                    )
+                    self.parola_entry.delete(0, "end")
+                    self.parola_entry.focus_set()
+                    return
+
+            authenticated_user["lisans_durumu"] = dict(
+                self.license_decision
+            )
+
             conn.execute("""
                 UPDATE kullanici_hesaplari
                 SET son_giris_zamani = ?
@@ -411,6 +530,27 @@ class LoginWindow(ctk.CTk):
 
             conn.commit()
             self.authenticated_user = authenticated_user
+
+            if (
+                self.license_decision.get("durum")
+                == "GECIS_SURESI"
+            ):
+                messagebox.showwarning(
+                    "Lisans Geçiş Süresi",
+                    (
+                        "Mevcut kurulum güvenli geçiş süresindedir. "
+                        "Normal kullanım devam eder. Kalan süre: "
+                        + str(
+                            self.license_decision.get(
+                                "kalan_gun",
+                                0,
+                            )
+                        )
+                        + " gün. Süre dolmadan gerçek firma "
+                        "profilini tamamlayıp lisansı aktive edin."
+                    ),
+                    parent=self,
+                )
 
         finally:
             conn.close()

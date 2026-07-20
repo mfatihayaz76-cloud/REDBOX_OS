@@ -14,6 +14,8 @@ from database.audit_engine import (
 )
 from database.migrations import run_migrations
 from ui.login import PBKDF2_ITERATIONS, _parola_hash
+from ui.company_profile_window import CompanyProfileWindow
+from ui.license_center_window import LicenseCenterWindow
 
 
 class SystemPage:
@@ -142,7 +144,7 @@ class SystemPage:
                 uniform="system_modules",
             )
 
-        for row in range(2):
+        for row in range(3):
             moduller.grid_rowconfigure(
                 row,
                 weight=1,
@@ -254,14 +256,14 @@ class SystemPage:
             firma_kart,
             "FİRMA BİLGİLERİ",
             (
-                "REDBOX Gıda ve Long Potato operasyon "
-                "kimlik bilgilerini görüntüleyin."
+                "Gerçek ticari firma kimliğini görüntüleyin "
+                "ve mevcut kurulum profilini tamamlayın."
             ),
         )
 
         ctk.CTkButton(
             firma_kart,
-            text="FİRMA BİLGİLERİNİ GÖRÜNTÜLE",
+            text="FİRMA PROFİLİNİ AÇ",
             height=42,
             command=self.company_info,
         ).pack(
@@ -270,10 +272,40 @@ class SystemPage:
             pady=(10, 20),
         )
 
-        ayar_kart = ctk.CTkFrame(moduller)
-        ayar_kart.grid(
+        lisans_kart = ctk.CTkFrame(moduller)
+        lisans_kart.grid(
             row=1,
             column=1,
+            sticky="nsew",
+            padx=5,
+            pady=5,
+        )
+
+        self._module_header(
+            lisans_kart,
+            "LİSANSLAMA",
+            (
+                "Lisans durumunu görüntüleyin, çevrimdışı lisans "
+                "talebi oluşturun veya imzalı lisansı aktive edin."
+            ),
+        )
+
+        ctk.CTkButton(
+            lisans_kart,
+            text="LİSANS MERKEZİNİ AÇ",
+            height=42,
+            command=self.license_center,
+        ).pack(
+            fill="x",
+            padx=20,
+            pady=(10, 20),
+        )
+
+        ayar_kart = ctk.CTkFrame(moduller)
+        ayar_kart.grid(
+            row=2,
+            column=0,
+            columnspan=2,
             sticky="nsew",
             padx=5,
             pady=5,
@@ -1455,147 +1487,31 @@ class SystemPage:
 
 
     def company_info(self):
-        window = ctk.CTkToplevel(self.app)
-        window.title("REDBOX OS — Firma Bilgileri")
-        window.geometry("720x610")
-        window.minsize(650, 540)
-        window.transient(self.app)
-        window.grab_set()
-
-        body = ctk.CTkScrollableFrame(
-            window,
-            corner_radius=14,
-        )
-        body.pack(
-            fill="both",
-            expand=True,
-            padx=20,
-            pady=20,
+        current_user = getattr(
+            self.app,
+            "current_user",
+            {},
         )
 
-        ctk.CTkLabel(
-            body,
-            text="FİRMA BİLGİLERİ",
-            font=("Arial", 24, "bold"),
-        ).pack(
-            anchor="w",
-            padx=20,
-            pady=(20, 5),
+        CompanyProfileWindow(
+            self.app,
+            kullanici=current_user,
+            oturum_id=current_user.get("oturum_id"),
+            on_complete=self.create,
         )
 
-        ctk.CTkLabel(
-            body,
-            text=(
-                "REDBOX OS operasyon kimliği ve "
-                "üretim sistemi özeti"
-            ),
-            font=("Arial", 13),
-            text_color="#A3A3A3",
-        ).pack(
-            anchor="w",
-            padx=20,
-            pady=(0, 20),
+    def license_center(self):
+        current_user = getattr(
+            self.app,
+            "current_user",
+            {},
         )
 
-        bilgiler = (
-            ("FİRMA / İŞLETME", "REDBOX GIDA"),
-            ("ÜRÜN / MARKA", "LONG POTATO"),
-            ("YÖNETİM SİSTEMİ", "REDBOX OS"),
-            ("ÜRETİM MODELİ", "Parti ve lot bazlı üretim"),
-            (
-                "İZLENEBİLİRLİK",
-                "Hammadde → üretim → paketleme → sevkiyat",
-            ),
-            (
-                "AKTİF AMBALAJLAR",
-                "500 g ve 2.5 kg",
-            ),
-            (
-                "VERİ KAYNAĞI",
-                "SQLite — database/redbox_os.db",
-            ),
-        )
-
-        table = ctk.CTkFrame(body)
-        table.pack(
-            fill="x",
-            padx=20,
-            pady=(0, 15),
-        )
-        table.grid_columnconfigure(1, weight=1)
-
-        for row_index, (label, value) in enumerate(
-            bilgiler
-        ):
-            color = (
-                "#292929"
-                if row_index % 2 == 0
-                else "#303030"
-            )
-
-            ctk.CTkLabel(
-                table,
-                text=label,
-                width=190,
-                height=44,
-                anchor="w",
-                font=("Arial", 12, "bold"),
-                fg_color=color,
-            ).grid(
-                row=row_index,
-                column=0,
-                sticky="nsew",
-                padx=(1, 0),
-                pady=1,
-            )
-
-            ctk.CTkLabel(
-                table,
-                text=value,
-                height=44,
-                anchor="w",
-                justify="left",
-                wraplength=410,
-                fg_color=color,
-            ).grid(
-                row=row_index,
-                column=1,
-                sticky="nsew",
-                padx=(0, 1),
-                pady=1,
-            )
-
-        ctk.CTkLabel(
-            body,
-            text=(
-                "Firma adresi, iletişim bilgileri ve resmi "
-                "kayıt bilgileri sisteme tanımlandığında "
-                "bu bölümden merkezi olarak yönetilecektir."
-            ),
-            font=("Arial", 12),
-            text_color="#A3A3A3",
-            justify="left",
-            wraplength=620,
-        ).pack(
-            anchor="w",
-            padx=20,
-            pady=(5, 20),
-        )
-
-        ctk.CTkButton(
-            body,
-            text="KAPAT",
-            height=42,
-            command=window.destroy,
-        ).pack(
-            fill="x",
-            padx=20,
-            pady=(0, 20),
-        )
-
-        window.after(
-            150,
-            window.focus_force,
+        LicenseCenterWindow(
+            self.app,
+            kullanici=current_user,
+            oturum_id=current_user.get("oturum_id"),
+            on_complete=self.create,
         )
 
     def settings(self):

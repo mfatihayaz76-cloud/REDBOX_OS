@@ -10,6 +10,10 @@ datas = [
         "database/redbox_os.db",
         "database",
     ),
+    (
+        "licensing/public_keys.json",
+        "licensing",
+    ),
 ]
 
 datas += collect_data_files(
@@ -17,16 +21,23 @@ datas += collect_data_files(
 )
 
 hiddenimports = [
+    "cryptography",
+    "cryptography.hazmat.primitives.serialization",
+    "cryptography.hazmat.primitives.asymmetric.ed25519",
     "database.audit_engine",
     "database.cleaning_engine",
+    "database.company_profile_engine",
     "database.db",
+    "database.licensing_engine",
     "database.finished_stock_engine",
     "database.migrations",
     "database.quality_engine",
     "database.raw_material_stock_engine",
     "database.report_engine",
     "database.stock_engine",
+    "ui.company_profile_window",
     "ui.controllers.dashboard_controller",
+    "ui.license_center_window",
     "ui.login",
     "ui.order_calculator",
     "ui.pages.dashboard_page",

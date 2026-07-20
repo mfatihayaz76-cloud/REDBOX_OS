@@ -1,0 +1,14 @@
+{
+  "keys": [
+    {
+      "active": true,
+      "algorithm": "Ed25519",
+      "created_at": "2026-07-21T01:15:23.235557+03:00",
+      "key_id": "REDBOX-PROD-2813E117AB41",
+      "public_key_base64": "/ChKnHeBjWtIaYH7/0175iUSpNTmD+vR3Ou8j3EeZj8=",
+      "public_key_sha256": "2813e117ab41b77b101f676d78d65b704241385931e41f47c07cdcf56555b8bc"
+    }
+  ],
+  "product_code": "REDBOX_OS",
+  "registry_version": 1
+}

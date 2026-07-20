@@ -1,9 +1,9 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 11
+LATEST_SCHEMA_VERSION = 12
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -1225,6 +1225,212 @@ def _migration_11_company_first_setup_foundation(conn):
 
 
 
+
+def _migration_12_licensing_foundation(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS lisans_kayitlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lisans_uuid TEXT NOT NULL UNIQUE,
+            lisans_anahtari_sha256 TEXT NOT NULL UNIQUE
+                CHECK (LENGTH(lisans_anahtari_sha256) = 64),
+            firma_id INTEGER NOT NULL,
+            cihaz_parmak_izi_sha256 TEXT NOT NULL
+                CHECK (
+                    LENGTH(cihaz_parmak_izi_sha256) = 64
+                ),
+            urun_kodu TEXT NOT NULL DEFAULT 'REDBOX_OS'
+                CHECK (urun_kodu = 'REDBOX_OS'),
+            lisans_turu TEXT NOT NULL
+                CHECK (
+                    lisans_turu IN (
+                        'SURELI',
+                        'SURESIZ'
+                    )
+                ),
+            durum TEXT NOT NULL DEFAULT 'AKTIF'
+                CHECK (
+                    durum IN (
+                        'AKTIF',
+                        'GRACE',
+                        'ASKIDA',
+                        'IPTAL',
+                        'SURESI_DOLDU'
+                    )
+                ),
+            baslangic_tarihi TEXT NOT NULL,
+            bitis_tarihi TEXT,
+            grace_period_gun INTEGER NOT NULL DEFAULT 7
+                CHECK (
+                    grace_period_gun BETWEEN 0 AND 30
+                ),
+            lisans_surumu INTEGER NOT NULL DEFAULT 1
+                CHECK (lisans_surumu >= 1),
+            imzali_payload_json TEXT NOT NULL
+                CHECK (json_valid(imzali_payload_json)),
+            imza_base64 TEXT NOT NULL,
+            acik_anahtar_kimligi TEXT NOT NULL,
+            aktivasyon_zamani TEXT NOT NULL,
+            son_dogrulama_zamani TEXT,
+            son_basarili_dogrulama_zamani TEXT,
+            son_guvenilir_zaman TEXT,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (firma_id)
+                REFERENCES firma_profili(id),
+            CHECK (
+                (
+                    lisans_turu = 'SURELI'
+                    AND bitis_tarihi IS NOT NULL
+                )
+                OR (
+                    lisans_turu = 'SURESIZ'
+                    AND bitis_tarihi IS NULL
+                )
+            )
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        ux_lisans_kayitlari_aktif_firma
+        ON lisans_kayitlari (firma_id)
+        WHERE durum IN ('AKTIF', 'GRACE');
+
+        CREATE INDEX IF NOT EXISTS
+        idx_lisans_kayitlari_cihaz
+        ON lisans_kayitlari (
+            cihaz_parmak_izi_sha256,
+            durum
+        );
+
+        CREATE TABLE IF NOT EXISTS lisans_gecis_durumu (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            durum TEXT NOT NULL DEFAULT 'AKTIF'
+                CHECK (
+                    durum IN (
+                        'AKTIF',
+                        'TAMAMLANDI',
+                        'SONA_ERDI'
+                    )
+                ),
+            kaynak TEXT NOT NULL
+                CHECK (
+                    kaynak IN (
+                        'LEGACY_UPGRADE'
+                    )
+                ),
+            baslangic_zamani TEXT NOT NULL,
+            bitis_zamani TEXT NOT NULL,
+            gecis_suresi_gun INTEGER NOT NULL DEFAULT 30
+                CHECK (gecis_suresi_gun = 30),
+            tamamlanma_zamani TEXT,
+            kayit_zamani TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS lisans_dogrulama_kayitlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lisans_id INTEGER,
+            kontrol_zamani TEXT NOT NULL,
+            sonuc TEXT NOT NULL
+                CHECK (
+                    sonuc IN (
+                        'BASARILI',
+                        'BASARISIZ',
+                        'GRACE'
+                    )
+                ),
+            kaynak TEXT NOT NULL
+                CHECK (
+                    kaynak IN (
+                        'AKTIVASYON',
+                        'BASLANGIC',
+                        'PERIYODIK',
+                        'MANUEL'
+                    )
+                ),
+            neden_kodu TEXT NOT NULL,
+            aciklama TEXT,
+            cihaz_parmak_izi_sha256 TEXT
+                CHECK (
+                    cihaz_parmak_izi_sha256 IS NULL
+                    OR LENGTH(cihaz_parmak_izi_sha256) = 64
+                ),
+            cevrimdisi INTEGER NOT NULL DEFAULT 1
+                CHECK (cevrimdisi IN (0, 1)),
+            oturum_id TEXT,
+            FOREIGN KEY (lisans_id)
+                REFERENCES lisans_kayitlari(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_lisans_dogrulama_lisans_zaman
+        ON lisans_dogrulama_kayitlari (
+            lisans_id,
+            kontrol_zamani
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_lisans_dogrulama_sonuc_zaman
+        ON lisans_dogrulama_kayitlari (
+            sonuc,
+            kontrol_zamani
+        );
+    """)
+
+    account_table_exists = conn.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = 'kullanici_hesaplari'
+        LIMIT 1
+        """
+    ).fetchone() is not None
+
+    active_accounts = 0
+
+    if account_table_exists:
+        active_accounts = conn.execute("""
+            SELECT COUNT(*)
+            FROM kullanici_hesaplari
+            WHERE aktif = 1
+        """).fetchone()[0]
+
+    existing_transition = conn.execute("""
+        SELECT id
+        FROM lisans_gecis_durumu
+        WHERE id = 1
+    """).fetchone()
+
+    if active_accounts > 0 and existing_transition is None:
+        start_time = datetime.now().astimezone()
+        end_time = start_time + timedelta(days=30)
+        timestamp = start_time.isoformat()
+
+        conn.execute("""
+            INSERT INTO lisans_gecis_durumu (
+                id,
+                durum,
+                kaynak,
+                baslangic_zamani,
+                bitis_zamani,
+                gecis_suresi_gun,
+                kayit_zamani
+            )
+            VALUES (
+                1,
+                'AKTIF',
+                'LEGACY_UPGRADE',
+                ?,
+                ?,
+                30,
+                ?
+            )
+        """, (
+            timestamp,
+            end_time.isoformat(),
+            timestamp,
+        ))
+
+
 MIGRATIONS = (
     (
         1,
@@ -1280,6 +1486,11 @@ MIGRATIONS = (
         11,
         "company_first_setup_foundation",
         _migration_11_company_first_setup_foundation,
+    ),
+    (
+        12,
+        "licensing_foundation",
+        _migration_12_licensing_foundation,
     ),
 )
 
