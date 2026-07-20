@@ -210,6 +210,8 @@ Durum: **TAMAMLANDI — 20.07.2026**
 
 ### Sprint CRC-4 — Ticari başlangıç kataloğu
 
+Durum: **TAMAMLANDI — 20.07.2026**
+
 - Yetkili reçete kaynağının alınması
 - 60+ reçetenin dry-run kontrolü
 - Hata listesinin temizlenmesi
@@ -217,6 +219,17 @@ Durum: **TAMAMLANDI — 20.07.2026**
 - Kabul raporu
 - Kontrollü canlı/fresh-install katalog üretimi
 - Her ürün için tek aktif reçete doğrulaması
+- Yetkili gerçek başlangıç kataloğu: 1 ürün
+- Reçete revizyonu: 2 (Rev.00 ARSIV, Rev.01 AKTIF)
+- Gerçek reçete kalemi: 16
+- Aktif reçete kütle dengesi: UYUMLU
+- CSV/XLSX dry-run: 0 hata, 0 uyarı
+- 61 ürün kapasite dry-run ve atomik import testi: PASS
+- Fresh-install sandbox atomik import: PASS
+- İçerik SHA-256 üretimi: PASS
+- Import audit kaydı: PASS
+- XLSX üç sayfa görsel kabulü: PASS
+- Canlı DB yazımı: YOK
 
 ---
 
@@ -375,6 +388,6 @@ Fatih Ayaz tarafından çalışma sırasında belirtilen yeni fikirler:
 
 ## 10. Sıradaki Kesin İşlem
 
-`CRC-4 — Ticari başlangıç kataloğu`
+`COM-1 — Firma ve ilk kurulum`
 
-Başka modül açılmayacaktır. CRC-1 reçete katalog sözleşmesi, CRC-2 atomik CSV/XLSX import motoru ve CRC-3 profesyonel reçete merkezi tamamlanmıştır. Sıradaki çalışma yalnız Fatih Ayaz tarafından sağlanacak yetkili gerçek reçete verileriyle 60+ ticari başlangıç kataloğunun dry-run, hata temizleme, sandbox import ve kontrollü kabul süreci üzerinde yürütülecektir. Yetkili kaynak olmadan gerçek reçete içeriği üretilmeyecek veya uydurulmayacaktır.
+Başka modül açılmayacaktır. CRC-1, CRC-2, CRC-3 ve CRC-4 ticari reçete kataloğu hattı tamamlanmıştır. Sıradaki çalışma firma profili, tesis bilgileri, ilk yönetici hesabı, ilk çalıştırma sihirbazı, demo/gerçek kullanım ayrımı ve fresh-install başlangıç verisi üzerinde yürütülecektir.
