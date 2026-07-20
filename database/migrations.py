@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 10
+LATEST_SCHEMA_VERSION = 11
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -381,6 +381,22 @@ def _migration_5_multi_product_foundation(conn):
         )
     """)
 
+    legacy_data_exists = any(
+        conn.execute(
+            f"SELECT 1 FROM {table} LIMIT 1"
+        ).fetchone()
+        is not None
+        for table in (
+            "receteler",
+            "uretim",
+            "paketleme",
+            "sevkiyat",
+        )
+    )
+
+    if not legacy_data_exists:
+        return
+
     long_potato_exists = conn.execute("""
         SELECT id
         FROM urunler
@@ -410,8 +426,8 @@ def _migration_5_multi_product_foundation(conn):
             "KG",
             "-18°C",
             (
-                "REDBOX OS çok ürün altyapısı başlangıç "
-                "ürünü"
+                "REDBOX OS tarihsel veri geçişi "
+                "bağlama ürünü"
             ),
             datetime.now().strftime(
                 "%d.%m.%Y %H:%M:%S"
@@ -419,23 +435,9 @@ def _migration_5_multi_product_foundation(conn):
         ))
 
 
+
+
 def _migration_6_recipe_production_product_links(conn):
-    product_row = conn.execute("""
-        SELECT id
-        FROM urunler
-        WHERE urun_kodu = ?
-        LIMIT 1
-    """, (
-        "LP001",
-    )).fetchone()
-
-    if product_row is None:
-        raise RuntimeError(
-            "Migration 6: LP001 Long Potato ürünü bulunamadı."
-        )
-
-    long_potato_id = product_row[0]
-
     recete_columns = {
         row[1]
         for row in conn.execute(
@@ -454,14 +456,6 @@ def _migration_6_recipe_production_product_links(conn):
             ADD COLUMN urun_id INTEGER
             REFERENCES urunler(id)
         """)
-
-    conn.execute("""
-        UPDATE receteler
-        SET urun_id = ?
-        WHERE urun_id IS NULL
-    """, (
-        long_potato_id,
-    ))
 
     production_columns = {
         row[1]
@@ -482,14 +476,6 @@ def _migration_6_recipe_production_product_links(conn):
             REFERENCES urunler(id)
         """)
 
-    conn.execute("""
-        UPDATE uretim
-        SET urun_id = ?
-        WHERE urun_id IS NULL
-    """, (
-        long_potato_id,
-    ))
-
     missing_recipe_links = conn.execute("""
         SELECT COUNT(*)
         FROM receteler
@@ -502,15 +488,35 @@ def _migration_6_recipe_production_product_links(conn):
         WHERE urun_id IS NULL
     """).fetchone()[0]
 
-    if missing_recipe_links:
-        raise RuntimeError(
-            "Migration 6: ürünsüz reçete kaydı kaldı."
-        )
+    if missing_recipe_links or missing_production_links:
+        product_row = conn.execute("""
+            SELECT id
+            FROM urunler
+            WHERE urun_kodu = ?
+            LIMIT 1
+        """, (
+            "LP001",
+        )).fetchone()
 
-    if missing_production_links:
-        raise RuntimeError(
-            "Migration 6: ürünsüz üretim kaydı kaldı."
-        )
+        if product_row is None:
+            raise RuntimeError(
+                "Migration 6: tarihsel kayıtlar için "
+                "LP001 bağlama ürünü bulunamadı."
+            )
+
+        product_id = product_row[0]
+
+        conn.execute("""
+            UPDATE receteler
+            SET urun_id = ?
+            WHERE urun_id IS NULL
+        """, (product_id,))
+
+        conn.execute("""
+            UPDATE uretim
+            SET urun_id = ?
+            WHERE urun_id IS NULL
+        """, (product_id,))
 
     conn.execute("""
         CREATE INDEX IF NOT EXISTS
@@ -525,23 +531,9 @@ def _migration_6_recipe_production_product_links(conn):
     """)
 
 
+
+
 def _migration_7_packaging_shipment_product_links(conn):
-    product_row = conn.execute("""
-        SELECT id
-        FROM urunler
-        WHERE urun_kodu = ?
-        LIMIT 1
-    """, (
-        "LP001",
-    )).fetchone()
-
-    if product_row is None:
-        raise RuntimeError(
-            "Migration 7: LP001 Long Potato ürünü bulunamadı."
-        )
-
-    long_potato_id = product_row[0]
-
     packaging_columns = {
         row[1]
         for row in conn.execute(
@@ -560,14 +552,6 @@ def _migration_7_packaging_shipment_product_links(conn):
             ADD COLUMN urun_id INTEGER
             REFERENCES urunler(id)
         """)
-
-    conn.execute("""
-        UPDATE paketleme
-        SET urun_id = ?
-        WHERE urun_id IS NULL
-    """, (
-        long_potato_id,
-    ))
 
     shipment_columns = {
         row[1]
@@ -588,14 +572,6 @@ def _migration_7_packaging_shipment_product_links(conn):
             REFERENCES urunler(id)
         """)
 
-    conn.execute("""
-        UPDATE sevkiyat
-        SET urun_id = ?
-        WHERE urun_id IS NULL
-    """, (
-        long_potato_id,
-    ))
-
     missing_packaging_links = conn.execute("""
         SELECT COUNT(*)
         FROM paketleme
@@ -608,15 +584,35 @@ def _migration_7_packaging_shipment_product_links(conn):
         WHERE urun_id IS NULL
     """).fetchone()[0]
 
-    if missing_packaging_links:
-        raise RuntimeError(
-            "Migration 7: ürünsüz paketleme kaydı kaldı."
-        )
+    if missing_packaging_links or missing_shipment_links:
+        product_row = conn.execute("""
+            SELECT id
+            FROM urunler
+            WHERE urun_kodu = ?
+            LIMIT 1
+        """, (
+            "LP001",
+        )).fetchone()
 
-    if missing_shipment_links:
-        raise RuntimeError(
-            "Migration 7: ürünsüz sevkiyat kaydı kaldı."
-        )
+        if product_row is None:
+            raise RuntimeError(
+                "Migration 7: tarihsel kayıtlar için "
+                "LP001 bağlama ürünü bulunamadı."
+            )
+
+        product_id = product_row[0]
+
+        conn.execute("""
+            UPDATE paketleme
+            SET urun_id = ?
+            WHERE urun_id IS NULL
+        """, (product_id,))
+
+        conn.execute("""
+            UPDATE sevkiyat
+            SET urun_id = ?
+            WHERE urun_id IS NULL
+        """, (product_id,))
 
     conn.execute("""
         CREATE INDEX IF NOT EXISTS
@@ -629,6 +625,8 @@ def _migration_7_packaging_shipment_product_links(conn):
         idx_sevkiyat_urun_id
         ON sevkiyat(urun_id)
     """)
+
+
 
 def _migration_4_quality_capa_foundation(conn):
     conn.executescript(
@@ -1139,6 +1137,94 @@ def _migration_10_commercial_recipe_catalog_contract(conn):
     """)
 
 
+def _migration_11_company_first_setup_foundation(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS firma_profili (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            ticari_unvan TEXT NOT NULL,
+            kisa_ad TEXT NOT NULL,
+            vergi_dairesi TEXT,
+            vergi_no TEXT,
+            ulke TEXT NOT NULL DEFAULT 'Türkiye',
+            il TEXT,
+            ilce TEXT,
+            adres TEXT,
+            telefon TEXT,
+            eposta TEXT,
+            aktif INTEGER NOT NULL DEFAULT 1
+                CHECK (aktif IN (0, 1)),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS tesis_profilleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            firma_id INTEGER NOT NULL,
+            tesis_kodu TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            tesis_adi TEXT NOT NULL,
+            tesis_turu TEXT NOT NULL DEFAULT 'URETIM'
+                CHECK (
+                    tesis_turu IN (
+                        'URETIM',
+                        'DEPO',
+                        'MERKEZ',
+                        'DIGER'
+                    )
+                ),
+            ulke TEXT NOT NULL DEFAULT 'Türkiye',
+            il TEXT,
+            ilce TEXT,
+            adres TEXT,
+            telefon TEXT,
+            eposta TEXT,
+            ana_tesis INTEGER NOT NULL DEFAULT 0
+                CHECK (ana_tesis IN (0, 1)),
+            aktif INTEGER NOT NULL DEFAULT 1
+                CHECK (aktif IN (0, 1)),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT,
+            FOREIGN KEY (firma_id)
+                REFERENCES firma_profili(id)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        ux_tesis_profilleri_ana_tesis
+        ON tesis_profilleri (firma_id)
+        WHERE ana_tesis = 1 AND aktif = 1;
+
+        CREATE TABLE IF NOT EXISTS ilk_kurulum_durumu (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            kullanim_modu TEXT NOT NULL
+                CHECK (kullanim_modu IN ('GERCEK', 'DEMO')),
+            tamamlandi INTEGER NOT NULL DEFAULT 0
+                CHECK (tamamlandi IN (0, 1)),
+            firma_id INTEGER,
+            tesis_id INTEGER,
+            ilk_yonetici_hesap_id INTEGER,
+            baslama_zamani TEXT NOT NULL,
+            tamamlanma_zamani TEXT,
+            kurulum_surumu INTEGER NOT NULL DEFAULT 1
+                CHECK (kurulum_surumu >= 1),
+            FOREIGN KEY (firma_id)
+                REFERENCES firma_profili(id),
+            FOREIGN KEY (tesis_id)
+                REFERENCES tesis_profilleri(id),
+            FOREIGN KEY (ilk_yonetici_hesap_id)
+                REFERENCES kullanici_hesaplari(id),
+            CHECK (
+                tamamlandi = 0
+                OR (
+                    firma_id IS NOT NULL
+                    AND tesis_id IS NOT NULL
+                    AND ilk_yonetici_hesap_id IS NOT NULL
+                    AND tamamlanma_zamani IS NOT NULL
+                )
+            )
+        );
+    """)
+
+
+
 MIGRATIONS = (
     (
         1,
@@ -1189,6 +1275,11 @@ MIGRATIONS = (
         10,
         "commercial_recipe_catalog_contract",
         _migration_10_commercial_recipe_catalog_contract,
+    ),
+    (
+        11,
+        "company_first_setup_foundation",
+        _migration_11_company_first_setup_foundation,
     ),
 )
 

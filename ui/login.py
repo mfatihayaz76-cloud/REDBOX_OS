@@ -1,8 +1,6 @@
 import hashlib
 import hmac
 import multiprocessing
-import os
-import sqlite3
 from datetime import datetime
 from tkinter import messagebox
 
@@ -13,6 +11,11 @@ from database.audit_engine import (
     denetim_kaydi_ekle,
     yeni_oturum_id,
 )
+from database.first_setup_engine import (
+    ilk_kurulum_gerekli_mi,
+    uygulama_kimligini_getir,
+)
+from ui.first_setup_wizard import FirstSetupWizard
 
 
 PBKDF2_ITERATIONS = 600_000
@@ -33,8 +36,16 @@ class LoginWindow(ctk.CTk):
 
         self.authenticated_user = None
         self.oturum_id = yeni_oturum_id()
-        self.title("REDBOX OS — Giriş")
-        self.geometry("520x650")
+        self.application_context = self._uygulama_kimligi()
+        self.title(
+            "REDBOX OS — "
+            f"{self.application_context['firma_kisa_ad']} — Giriş"
+        )
+        self._window_width = 520
+        self._window_height = 650
+        self.geometry(
+            f"{self._window_width}x{self._window_height}"
+        )
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self._kapat)
 
@@ -54,6 +65,7 @@ class LoginWindow(ctk.CTk):
             sticky="nsew",
         )
         self.card.grid_columnconfigure(0, weight=1)
+        self.card.grid_rowconfigure(3, weight=1)
 
         ctk.CTkLabel(
             self.card,
@@ -66,16 +78,30 @@ class LoginWindow(ctk.CTk):
             pady=(45, 4),
         )
 
-        ctk.CTkLabel(
+        self.company_label = ctk.CTkLabel(
             self.card,
-            text="REDBOX GIDA",
-            font=("Arial", 14),
-            text_color="#9CA3AF",
-        ).grid(
+            text=self.application_context["firma_kisa_ad"],
+            font=("Arial", 14, "bold"),
+            text_color="#D1D5DB",
+        )
+        self.company_label.grid(
             row=1,
             column=0,
             padx=30,
-            pady=(0, 30),
+            pady=(0, 5),
+        )
+
+        self.mode_label = ctk.CTkLabel(
+            self.card,
+            text=self.application_context["kullanim_modu"],
+            font=("Arial", 11, "bold"),
+            text_color=self._mod_rengi(),
+        )
+        self.mode_label.grid(
+            row=2,
+            column=0,
+            padx=30,
+            pady=(0, 22),
         )
 
         self.form = ctk.CTkFrame(
@@ -83,38 +109,77 @@ class LoginWindow(ctk.CTk):
             fg_color="transparent",
         )
         self.form.grid(
-            row=2,
+            row=3,
             column=0,
             padx=35,
             pady=(0, 25),
-            sticky="ew",
+            sticky="nsew",
         )
         self.form.grid_columnconfigure(0, weight=1)
 
-        if self._hesap_var_mi():
-            self._giris_formu()
-        else:
+        if self._ilk_kurulum_gerekli_mi():
+            self._window_width = 900
+            self._window_height = 820
+            self.minsize(760, 680)
+            self.resizable(True, True)
+            self.geometry(
+                f"{self._window_width}x{self._window_height}"
+            )
             self._ilk_kurulum_formu()
+        else:
+            self._giris_formu()
 
         self.after(150, self._ortala)
 
     def _ortala(self):
         self.update_idletasks()
-        x = (self.winfo_screenwidth() - self.winfo_width()) // 2
-        y = (self.winfo_screenheight() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{max(y - 30, 0)}")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        width = min(self._window_width, screen_width - 40)
+        height = min(self._window_height, screen_height - 90)
+        x = max((screen_width - width) // 2, 0)
+        y = max((screen_height - height) // 2 - 20, 0)
+        self.geometry(
+            f"{width}x{height}+{x}+{y}"
+        )
 
-    def _hesap_var_mi(self):
+    def _uygulama_kimligi(self):
         conn = get_connection()
         try:
-            row = conn.execute("""
-                SELECT COUNT(*)
-                FROM kullanici_hesaplari
-                WHERE aktif = 1
-            """).fetchone()
-            return int(row[0]) > 0
+            return uygulama_kimligini_getir(conn)
         finally:
             conn.close()
+
+    def _mod_rengi(self):
+        return {
+            "GERCEK": "#22C55E",
+            "DEMO": "#F59E0B",
+            "KURULUM": "#60A5FA",
+        }.get(
+            self.application_context["kullanim_modu"],
+            "#9CA3AF",
+        )
+
+    def _kimlik_etiketlerini_guncelle(self):
+        self.company_label.configure(
+            text=self.application_context["firma_kisa_ad"],
+        )
+        self.mode_label.configure(
+            text=self.application_context["kullanim_modu"],
+            text_color=self._mod_rengi(),
+        )
+        self.title(
+            "REDBOX OS — "
+            f"{self.application_context['firma_kisa_ad']} — Giriş"
+        )
+
+    def _ilk_kurulum_gerekli_mi(self):
+        conn = get_connection()
+        try:
+            return ilk_kurulum_gerekli_mi(conn)
+        finally:
+            conn.close()
+
 
     def _formu_temizle(self):
         for widget in self.form.winfo_children():
@@ -145,213 +210,30 @@ class LoginWindow(ctk.CTk):
 
     def _ilk_kurulum_formu(self):
         self._formu_temizle()
-        self._baslik(
-            "İLK YÖNETİCİ HESABI",
-            "Bu işlem yalnızca ilk kullanımda yapılır.",
-        )
-
-        personeller = self._aktif_personeller()
-        if not personeller:
-            messagebox.showerror(
-                "Kurulum Hatası",
-                "Aktif personel kaydı bulunamadı.",
-            )
-            self.destroy()
-            return
-
-        varsayilan = (
-            "Fatih Ayaz"
-            if "Fatih Ayaz" in personeller
-            else personeller[0]
-        )
-
-        self.personel_secim = ctk.CTkOptionMenu(
+        self.form.grid_rowconfigure(0, weight=1)
+        self.wizard = FirstSetupWizard(
             self.form,
-            values=personeller,
-            height=42,
+            on_complete=self._kurulum_tamamlandi,
+            oturum_id=self.oturum_id,
         )
-        self.personel_secim.set(varsayilan)
-        self.personel_secim.grid(
-            row=2,
+        self.wizard.grid(
+            row=0,
             column=0,
-            pady=7,
-            sticky="ew",
+            sticky="nsew",
         )
 
-        self.kullanici_entry = ctk.CTkEntry(
-            self.form,
-            placeholder_text="Kullanıcı adı",
-            height=42,
-        )
-        self.kullanici_entry.insert(0, "fatih")
-        self.kullanici_entry.grid(
-            row=3,
-            column=0,
-            pady=7,
-            sticky="ew",
-        )
-
-        self.parola_entry = ctk.CTkEntry(
-            self.form,
-            placeholder_text="Parola — en az 8 karakter",
-            show="●",
-            height=42,
-        )
-        self.parola_entry.grid(
-            row=4,
-            column=0,
-            pady=7,
-            sticky="ew",
-        )
-
-        self.parola_tekrar_entry = ctk.CTkEntry(
-            self.form,
-            placeholder_text="Parola tekrar",
-            show="●",
-            height=42,
-        )
-        self.parola_tekrar_entry.grid(
-            row=5,
-            column=0,
-            pady=7,
-            sticky="ew",
-        )
-
-        ctk.CTkButton(
-            self.form,
-            text="YÖNETİCİ HESABINI OLUŞTUR",
-            height=46,
-            font=("Arial", 13, "bold"),
-            command=self._ilk_hesabi_olustur,
-        ).grid(
-            row=6,
-            column=0,
-            pady=(18, 5),
-            sticky="ew",
-        )
-
-        self.parola_tekrar_entry.bind(
-            "<Return>",
-            lambda _event: self._ilk_hesabi_olustur(),
-        )
-        self.parola_entry.focus_set()
-
-    def _aktif_personeller(self):
-        conn = get_connection()
-        try:
-            rows = conn.execute("""
-                SELECT p.ad_soyad
-                FROM personeller p
-                LEFT JOIN kullanici_hesaplari kh
-                  ON kh.personel_id = p.id
-                WHERE p.aktif = 1
-                  AND kh.id IS NULL
-                ORDER BY
-                    CASE
-                        WHEN p.ad_soyad = 'Fatih Ayaz' THEN 0
-                        ELSE 1
-                    END,
-                    p.ad_soyad
-            """).fetchall()
-            return [row["ad_soyad"] for row in rows]
-        finally:
-            conn.close()
-
-    def _ilk_hesabi_olustur(self):
-        personel = self.personel_secim.get().strip()
-        kullanici = self.kullanici_entry.get().strip()
-        parola = self.parola_entry.get()
-        parola_tekrar = self.parola_tekrar_entry.get()
-
-        if len(kullanici) < 3:
-            messagebox.showwarning(
-                "Eksik Bilgi",
-                "Kullanıcı adı en az 3 karakter olmalıdır.",
-            )
-            return
-
-        if len(parola) < 8:
-            messagebox.showwarning(
-                "Zayıf Parola",
-                "Parola en az 8 karakter olmalıdır.",
-            )
-            return
-
-        if parola != parola_tekrar:
-            messagebox.showwarning(
-                "Parola Hatası",
-                "Parolalar birbiriyle aynı değil.",
-            )
-            return
-
-        tuz = os.urandom(16).hex()
-        parola_ozeti = _parola_hash(parola, tuz)
-        now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-
-        conn = get_connection()
-        try:
-            conn.execute("BEGIN IMMEDIATE")
-
-            hesap_sayisi = conn.execute("""
-                SELECT COUNT(*)
-                FROM kullanici_hesaplari
-            """).fetchone()[0]
-
-            if hesap_sayisi:
-                raise RuntimeError(
-                    "İlk yönetici hesabı daha önce oluşturulmuş."
-                )
-
-            personel_row = conn.execute("""
-                SELECT id
-                FROM personeller
-                WHERE ad_soyad = ?
-                  AND aktif = 1
-            """, (personel,)).fetchone()
-
-            if personel_row is None:
-                raise RuntimeError(
-                    "Seçilen aktif personel bulunamadı."
-                )
-
-            conn.execute("""
-                INSERT INTO kullanici_hesaplari (
-                    personel_id,
-                    kullanici_adi,
-                    parola_hash,
-                    parola_tuzu,
-                    iterasyon,
-                    yonetici,
-                    aktif,
-                    kayit_zamani
-                )
-                VALUES (?, ?, ?, ?, ?, 1, 1, ?)
-            """, (
-                personel_row["id"],
-                kullanici,
-                parola_ozeti,
-                tuz,
-                PBKDF2_ITERATIONS,
-                now,
-            ))
-
-            conn.commit()
-
-        except (sqlite3.Error, RuntimeError) as exc:
-            conn.rollback()
-            messagebox.showerror(
-                "Hesap Oluşturma Hatası",
-                str(exc),
-            )
-            return
-        finally:
-            conn.close()
-
-        messagebox.showinfo(
-            "Hesap Hazır",
-            "Yönetici hesabı güvenli şekilde oluşturuldu.",
+    def _kurulum_tamamlandi(self, _result):
+        self.application_context = self._uygulama_kimligi()
+        self._kimlik_etiketlerini_guncelle()
+        self._window_width = 520
+        self._window_height = 650
+        self.minsize(520, 650)
+        self.resizable(False, False)
+        self.geometry(
+            f"{self._window_width}x{self._window_height}"
         )
         self._giris_formu()
+        self.after(50, self._ortala)
 
     def _giris_formu(self):
         self._formu_temizle()
@@ -503,6 +385,9 @@ class LoginWindow(ctk.CTk):
                 ],
                 "oturum_id": self.oturum_id,
             }
+            authenticated_user.update(
+                self.application_context
+            )
 
             conn.execute("""
                 UPDATE kullanici_hesaplari

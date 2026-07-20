@@ -59,12 +59,22 @@ class RedboxOS(ctk.CTk):
         super().__init__()
 
         self.current_user = current_user
+        self.company_name = current_user.get(
+            "firma_kisa_ad",
+            "REDBOX OS",
+        )
+        self.usage_mode = current_user.get(
+            "kullanim_modu",
+            "GERCEK",
+        )
         self.formul_yetkili = (
             bool(current_user.get("yonetici"))
             and current_user.get("ad_soyad") == "Fatih Ayaz"
             and current_user.get("kullanici_adi", "").lower() == "fatih"
         )
-        self.title("REDBOX OS")
+        self.title(
+            f"REDBOX OS — {self.company_name}"
+        )
         self.geometry("1380x820")
 
         if sys.platform == "darwin":
@@ -102,9 +112,30 @@ class RedboxOS(ctk.CTk):
 
         ctk.CTkLabel(
             self.sidebar,
-            text="REDBOX GIDA",
-            font=("Arial", 13)
-        ).grid(row=1, column=0, padx=25, pady=(0, 30))
+            text=self.company_name,
+            font=("Arial", 13, "bold"),
+        ).grid(
+            row=1,
+            column=0,
+            padx=25,
+            pady=(0, 4),
+        )
+
+        ctk.CTkLabel(
+            self.sidebar,
+            text=self.usage_mode,
+            font=("Arial", 11, "bold"),
+            text_color=(
+                "#F59E0B"
+                if self.usage_mode == "DEMO"
+                else "#22C55E"
+            ),
+        ).grid(
+            row=2,
+            column=0,
+            padx=25,
+            pady=(0, 20),
+        )
 
         def menu_izin(yetki):
             return (
@@ -148,7 +179,7 @@ class RedboxOS(ctk.CTk):
         if menu_izin("SISTEM"):
             menu.append(("SİSTEM", self.sistem))
 
-        for index, (text, command) in enumerate(menu, start=2):
+        for index, (text, command) in enumerate(menu, start=3):
             ctk.CTkButton(
                 self.sidebar,
                 text=text,
