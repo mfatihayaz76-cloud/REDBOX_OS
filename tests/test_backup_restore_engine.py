@@ -14,7 +14,10 @@ from database.backup_recovery_engine import (
     geri_yuklemeyi_hazirla,
     veritabani_durumunu_getir,
 )
-from database.migrations import run_migrations
+from database.migrations import (
+    LATEST_SCHEMA_VERSION,
+    run_migrations,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -137,7 +140,7 @@ class BackupRestorePreparationTest(unittest.TestCase):
         )
         self.assertEqual(
             pending_status["schema_version"],
-            13,
+            LATEST_SCHEMA_VERSION,
         )
         self.assertEqual(
             request["format"],

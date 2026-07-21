@@ -71,8 +71,8 @@ class BackupRecoveryMigrationTest(unittest.TestCase):
         finally:
             conn.close()
 
-        self.assertEqual(LATEST_SCHEMA_VERSION, 13)
-        self.assertEqual(version, 13)
+        self.assertGreaterEqual(LATEST_SCHEMA_VERSION, 13)
+        self.assertEqual(version, LATEST_SCHEMA_VERSION)
         self.assertEqual(
             migration,
             ("backup_recovery_foundation",),

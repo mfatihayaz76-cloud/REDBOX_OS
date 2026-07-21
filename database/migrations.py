@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 13
+LATEST_SCHEMA_VERSION = 14
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -1563,6 +1563,346 @@ def _migration_13_backup_recovery_foundation(conn):
     """, (now, now))
 
 
+def _migration_14_haccp_engine(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS haccp_planlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_kodu TEXT NOT NULL UNIQUE,
+            urun_id INTEGER NOT NULL,
+            ad TEXT NOT NULL,
+            urun_aciklamasi TEXT NOT NULL,
+            amaclanan_kullanim TEXT NOT NULL,
+            hedef_tuketici TEXT,
+            kullanim_kisitlari TEXT,
+            revizyon_no INTEGER NOT NULL DEFAULT 1
+                CHECK (revizyon_no >= 1),
+            durum TEXT NOT NULL DEFAULT 'TASLAK'
+                CHECK (
+                    durum IN (
+                        'TASLAK',
+                        'INCELEMEDE',
+                        'ONAYLI',
+                        'ARSIV'
+                    )
+                ),
+            onceki_plan_id INTEGER,
+            hazirlayan_personel_id INTEGER,
+            onaylayan_personel_id INTEGER,
+            onay_zamani TEXT,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (urun_id)
+                REFERENCES urunler(id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY (onceki_plan_id)
+                REFERENCES haccp_planlari(id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY (hazirlayan_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY (onaylayan_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_proses_adimlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            adim_no INTEGER NOT NULL
+                CHECK (adim_no >= 1),
+            ad TEXT NOT NULL,
+            aciklama TEXT,
+            girdiler TEXT,
+            ciktilar TEXT,
+            sorumlu_rol TEXT,
+            yerinde_dogrulandi INTEGER NOT NULL DEFAULT 0
+                CHECK (yerinde_dogrulandi IN (0, 1)),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            UNIQUE (plan_id, adim_no),
+            FOREIGN KEY (plan_id)
+                REFERENCES haccp_planlari(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_akis_dogrulamalari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            dogrulama_tarihi TEXT NOT NULL,
+            dogrulayan_personel_id INTEGER NOT NULL,
+            sonuc TEXT NOT NULL
+                CHECK (
+                    sonuc IN (
+                        'UYGUN',
+                        'UYGUN_DEGIL'
+                    )
+                ),
+            bulgular TEXT,
+            aksiyonlar TEXT,
+            kayit_zamani TEXT NOT NULL,
+            FOREIGN KEY (plan_id)
+                REFERENCES haccp_planlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (dogrulayan_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_tehlikeleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tehlike_kodu TEXT NOT NULL UNIQUE,
+            ad TEXT NOT NULL,
+            tehlike_turu TEXT NOT NULL
+                CHECK (
+                    tehlike_turu IN (
+                        'BIYOLOJIK',
+                        'KIMYASAL',
+                        'FIZIKSEL',
+                        'ALERJEN'
+                    )
+                ),
+            aciklama TEXT NOT NULL,
+            kaynak TEXT,
+            aktif INTEGER NOT NULL DEFAULT 1
+                CHECK (aktif IN (0, 1)),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS
+        haccp_tehlike_degerlendirmeleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            proses_adimi_id INTEGER NOT NULL,
+            tehlike_id INTEGER NOT NULL,
+            olasilik INTEGER NOT NULL
+                CHECK (olasilik BETWEEN 1 AND 5),
+            siddet INTEGER NOT NULL
+                CHECK (siddet BETWEEN 1 AND 5),
+            risk_puani INTEGER NOT NULL
+                CHECK (
+                    risk_puani = olasilik * siddet
+                    AND risk_puani BETWEEN 1 AND 25
+                ),
+            onemli_tehlike INTEGER NOT NULL
+                CHECK (onemli_tehlike IN (0, 1)),
+            gerekce TEXT NOT NULL,
+            kontrol_onlemleri TEXT NOT NULL,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            UNIQUE (
+                plan_id,
+                proses_adimi_id,
+                tehlike_id
+            ),
+            FOREIGN KEY (plan_id)
+                REFERENCES haccp_planlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (proses_adimi_id)
+                REFERENCES haccp_proses_adimlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (tehlike_id)
+                REFERENCES haccp_tehlikeleri(id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_kontrol_noktalari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            degerlendirme_id INTEGER NOT NULL UNIQUE,
+            kontrol_kodu TEXT NOT NULL UNIQUE,
+            sinif TEXT NOT NULL
+                CHECK (
+                    sinif IN (
+                        'CCP',
+                        'OPRP',
+                        'PRP'
+                    )
+                ),
+            karar_agaci_cevaplari TEXT,
+            karar_gerekcesi TEXT NOT NULL,
+            aktif INTEGER NOT NULL DEFAULT 1
+                CHECK (aktif IN (0, 1)),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (degerlendirme_id)
+                REFERENCES
+                    haccp_tehlike_degerlendirmeleri(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_kritik_limitleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kontrol_noktasi_id INTEGER NOT NULL,
+            parametre TEXT NOT NULL,
+            operator TEXT NOT NULL
+                CHECK (
+                    operator IN (
+                        'MIN',
+                        'MAX',
+                        'ARALIK',
+                        'ESIT',
+                        'NITEL'
+                    )
+                ),
+            alt_limit REAL,
+            ust_limit REAL,
+            hedef_deger TEXT,
+            birim TEXT,
+            bilimsel_dayanak TEXT NOT NULL,
+            aktif INTEGER NOT NULL DEFAULT 1
+                CHECK (aktif IN (0, 1)),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (kontrol_noktasi_id)
+                REFERENCES haccp_kontrol_noktalari(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_izleme_planlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kontrol_noktasi_id INTEGER NOT NULL,
+            izlenecek_parametre TEXT NOT NULL,
+            yontem TEXT NOT NULL,
+            siklik TEXT NOT NULL,
+            sorumlu_rol TEXT NOT NULL,
+            kayit_formu TEXT NOT NULL,
+            sapmada_yapilacaklar TEXT NOT NULL,
+            aktif INTEGER NOT NULL DEFAULT 1
+                CHECK (aktif IN (0, 1)),
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (kontrol_noktasi_id)
+                REFERENCES haccp_kontrol_noktalari(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_sapmalari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kontrol_noktasi_id INTEGER NOT NULL,
+            tespit_zamani TEXT NOT NULL,
+            tespit_degeri TEXT,
+            aciklama TEXT NOT NULL,
+            urun_karari TEXT NOT NULL,
+            duzeltme TEXT NOT NULL,
+            kok_neden TEXT,
+            kalite_uygunsuzluk_id INTEGER,
+            sorumlu_personel_id INTEGER,
+            durum TEXT NOT NULL DEFAULT 'ACIK'
+                CHECK (
+                    durum IN (
+                        'ACIK',
+                        'INCELEMEDE',
+                        'CAPA',
+                        'KAPALI'
+                    )
+                ),
+            kapanis_zamani TEXT,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (kontrol_noktasi_id)
+                REFERENCES haccp_kontrol_noktalari(id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY (kalite_uygunsuzluk_id)
+                REFERENCES kalite_uygunsuzluklari(id)
+                ON DELETE RESTRICT,
+            FOREIGN KEY (sorumlu_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE TABLE IF NOT EXISTS haccp_dogrulamalari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            dogrulama_turu TEXT NOT NULL
+                CHECK (
+                    dogrulama_turu IN (
+                        'PLAN',
+                        'AKIS',
+                        'IZLEME',
+                        'KALIBRASYON',
+                        'IC_DENETIM'
+                    )
+                ),
+            dogrulama_tarihi TEXT NOT NULL,
+            dogrulayan_personel_id INTEGER NOT NULL,
+            sonuc TEXT NOT NULL
+                CHECK (
+                    sonuc IN (
+                        'UYGUN',
+                        'UYGUN_DEGIL'
+                    )
+                ),
+            bulgular TEXT,
+            aksiyonlar TEXT,
+            sonraki_dogrulama_tarihi TEXT,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            FOREIGN KEY (plan_id)
+                REFERENCES haccp_planlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (dogrulayan_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE RESTRICT
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_plan_urun_durum
+        ON haccp_planlari (
+            urun_id,
+            durum
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_proses_plan_sira
+        ON haccp_proses_adimlari (
+            plan_id,
+            adim_no
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_tehlike_adim_tur
+        ON haccp_tehlike_degerlendirmeleri (
+            proses_adimi_id,
+            tehlike_id
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_degerlendirme_risk
+        ON haccp_tehlike_degerlendirmeleri (
+            risk_puani,
+            onemli_tehlike
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_kontrol_sinif
+        ON haccp_kontrol_noktalari (
+            sinif,
+            aktif
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_izleme_kontrol
+        ON haccp_izleme_planlari (
+            kontrol_noktasi_id,
+            aktif
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_sapma_durum
+        ON haccp_sapmalari (
+            durum,
+            tespit_zamani
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_haccp_dogrulama_plan_tarih
+        ON haccp_dogrulamalari (
+            plan_id,
+            dogrulama_tarihi
+        );
+    """)
+
+
 MIGRATIONS = (
     (
         1,
@@ -1628,6 +1968,11 @@ MIGRATIONS = (
         13,
         "backup_recovery_foundation",
         _migration_13_backup_recovery_foundation,
+    ),
+    (
+        14,
+        "haccp_engine",
+        _migration_14_haccp_engine,
     ),
 )
 

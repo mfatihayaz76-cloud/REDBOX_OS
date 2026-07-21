@@ -5,6 +5,7 @@ from tkinter import messagebox, ttk
 import customtkinter as ctk
 
 from database.db import get_connection
+from ui.haccp_window import HaccpWindow
 from database.report_engine import kalite_capa_pdf_olustur
 from database.quality_engine import (
     capa_durum_guncelle,
@@ -242,6 +243,20 @@ class QualityPage:
 
         ctk.CTkButton(
             toolbar,
+            text="HACCP MERKEZİ",
+            width=135,
+            height=40,
+            fg_color="#059669",
+            command=self.open_haccp_center,
+        ).grid(
+            row=0,
+            column=5,
+            padx=7,
+            pady=12,
+        )
+
+        ctk.CTkButton(
+            toolbar,
             text="PDF RAPORU",
             width=115,
             height=40,
@@ -249,11 +264,14 @@ class QualityPage:
             command=self.create_pdf,
         ).grid(
             row=0,
-            column=5,
+            column=6,
             padx=(7, 14),
             pady=12,
         )
 
+
+    def open_haccp_center(self):
+        HaccpWindow(self.app)
 
     def create_pdf(self):
         arama = self.search_entry.get().strip() or None

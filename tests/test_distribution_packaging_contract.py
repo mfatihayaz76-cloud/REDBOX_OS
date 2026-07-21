@@ -8,6 +8,7 @@ from application_metadata import (
     APP_BUILD,
     APP_VERSION,
 )
+from database.migrations import LATEST_SCHEMA_VERSION
 from tools.build_macos_release import (
     create_fresh_install_database,
     release_artifact_names,
@@ -53,7 +54,10 @@ class DistributionPackagingContractTest(unittest.TestCase):
                 target
             )
             self.assertTrue(target.is_file())
-            self.assertEqual(result["schema_version"], 13)
+            self.assertEqual(
+                result["schema_version"],
+                LATEST_SCHEMA_VERSION,
+            )
             self.assertEqual(result["integrity"], "ok")
             self.assertEqual(
                 result["foreign_key_violations"],
@@ -104,7 +108,7 @@ class DistributionPackagingContractTest(unittest.TestCase):
             self.assertEqual(before, after)
             self.assertEqual(
                 status["schema_version"],
-                13,
+                LATEST_SCHEMA_VERSION,
             )
             self.assertEqual(
                 status["integrity"],
