@@ -1,13 +1,30 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
 from PyInstaller.utils.hooks import collect_data_files
+
+from application_metadata import (
+    APP_BUILD,
+    APP_VERSION,
+    BUNDLE_IDENTIFIER,
+)
 
 
 block_cipher = None
 
+packaged_database = os.environ.get(
+    "REDBOX_PACKAGED_DB"
+)
+
+if not packaged_database:
+    raise RuntimeError(
+        "REDBOX_PACKAGED_DB temiz kurulum DB yolu gereklidir."
+    )
+
 datas = [
     (
-        "database/redbox_os.db",
+        packaged_database,
         "database",
     ),
     (
@@ -111,14 +128,14 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="REDBOX OS.app",
-    icon=None,
-    bundle_identifier="com.redboxgida.redboxos",
-    version="1.0.0",
+    icon="assets/REDBOX_OS.icns",
+    bundle_identifier=BUNDLE_IDENTIFIER,
+    version=APP_VERSION,
     info_plist={
         "CFBundleDisplayName": "REDBOX OS",
         "CFBundleName": "REDBOX OS",
-        "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "1",
+        "CFBundleShortVersionString": APP_VERSION,
+        "CFBundleVersion": APP_BUILD,
         "NSHighResolutionCapable": True,
     },
 )

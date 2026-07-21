@@ -7,7 +7,9 @@ from datetime import datetime
 
 from database.db import (
     BACKUP_DIR,
+    CRASH_DIR,
     DB_PATH,
+    LOG_DIR,
     RECOVERY_DIR,
     get_connection,
     init_database,
@@ -18,6 +20,11 @@ from database.backup_recovery_engine import (
     saklama_politikasini_uygula,
 )
 from database.audit_engine import denetim_kaydi_ekle
+from application_metadata import VERSION_LABEL
+from runtime_environment import (
+    configure_runtime_logging,
+    install_exception_hooks,
+)
 from database.stock_engine import (
     uretim_stok_isle,
     lot_parti_plani_oner,
@@ -63,6 +70,20 @@ from ui.login import authenticate_user
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+
+def _runtime_startup():
+    logging_result = configure_runtime_logging(
+        LOG_DIR
+    )
+    crash_result = install_exception_hooks(
+        CRASH_DIR
+    )
+    return {
+        "version": VERSION_LABEL,
+        "logging": logging_result,
+        "crash_reporting": crash_result,
+    }
 
 
 def _backup_recovery_startup():
@@ -13444,6 +13465,7 @@ class RedboxOS(ctk.CTk):
 
 
 if __name__ == "__main__":
+    _runtime_startup()
     _backup_recovery_startup()
 
     current_user = authenticate_user()

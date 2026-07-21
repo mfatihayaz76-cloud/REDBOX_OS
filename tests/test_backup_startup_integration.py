@@ -68,10 +68,25 @@ class BackupStartupIntegrationTest(unittest.TestCase):
         self.assertLess(init_index, automatic_index)
 
     def test_entrypoint_uses_controlled_startup(self):
-        self.assertIn(
+        expected_startup = (
             'if __name__ == "__main__":\n'
-            "    _backup_recovery_startup()",
+            "    _runtime_startup()\n"
+            "    _backup_recovery_startup()"
+        )
+        self.assertIn(
+            expected_startup,
             self.app_source,
+        )
+        self.assertLess(
+            self.app_source.index(
+                "    _runtime_startup()"
+            ),
+            self.app_source.index(
+                "    _backup_recovery_startup()",
+                self.app_source.index(
+                    'if __name__ == "__main__":'
+                ),
+            ),
         )
         self.assertNotIn(
             'if __name__ == "__main__":\n'

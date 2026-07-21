@@ -32,6 +32,10 @@ class BackupRecoveryPackagingContractTest(unittest.TestCase):
 
     def test_runtime_database_seed_is_preserved(self):
         self.assertIn(
+            "REDBOX_PACKAGED_DB",
+            self.source,
+        )
+        self.assertNotIn(
             '"database/redbox_os.db"',
             self.source,
         )

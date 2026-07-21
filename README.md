@@ -33,11 +33,22 @@ REDBOX OS, gıda üretim işletmeleri için geliştirilmiş masaüstü üretim v
 
 ## Veri Güvenliği
 
-Canlı veritabanı dosyası:
+Geliştirme ortamındaki canlı veritabanı:
 
     database/redbox_os.db
 
-Bu dosya işletmenin gerçek kayıtlarını içerir. Güncelleme, taşıma ve kurulum işlemlerinden önce mutlaka yedeklenmelidir.
+Paketlenmiş macOS uygulamasındaki kullanıcı verileri:
+
+    ~/Library/Application Support/REDBOX_OS/
+
+İşletme verileri uygulama paketinin dışında tutulur. Güncelleme, taşıma ve kurulum işlemlerinden önce doğrulanmış yedek alınmalıdır.
+
+## Dağıtım Belgeleri
+
+- `docs/KULLANICI_KILAVUZU.md`
+- `docs/KURULUM_KILAVUZU_MACOS.md`
+- `docs/LISANS_VE_DESTEK.md`
+- `docs/SURUM_NOTLARI_1.0.0.md`
 
 ## Sürüm
 

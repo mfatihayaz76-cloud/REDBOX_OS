@@ -9,9 +9,11 @@ from database.migrations import (
     QUALITY_CAPA_SCHEMA_SQL,
     run_migrations,
 )
+from application_metadata import APP_INTERNAL_NAME
+from runtime_environment import current_runtime_directories
 
 
-APP_NAME = "REDBOX_OS"
+APP_NAME = APP_INTERNAL_NAME
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -74,6 +76,12 @@ BACKUP_DIR = (
 )
 
 RECOVERY_DIR = BACKUP_DIR / ".recovery"
+
+_RUNTIME_DIRECTORIES = current_runtime_directories(
+    BASE_DIR
+)
+LOG_DIR = _RUNTIME_DIRECTORIES["logs"]
+CRASH_DIR = _RUNTIME_DIRECTORIES["crashes"]
 
 
 def _prepare_packaged_database():
