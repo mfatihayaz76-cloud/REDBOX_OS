@@ -6,6 +6,9 @@ import customtkinter as ctk
 
 from database.db import get_connection
 from ui.haccp_window import HaccpWindow
+from ui.prerequisite_programs_window import (
+    PrerequisiteProgramsWindow,
+)
 from database.report_engine import kalite_capa_pdf_olustur
 from database.quality_engine import (
     capa_durum_guncelle,
@@ -257,6 +260,20 @@ class QualityPage:
 
         ctk.CTkButton(
             toolbar,
+            text="PRP MERKEZİ",
+            width=130,
+            height=40,
+            fg_color="#0F766E",
+            command=self.open_prp_center,
+        ).grid(
+            row=0,
+            column=6,
+            padx=7,
+            pady=12,
+        )
+
+        ctk.CTkButton(
+            toolbar,
             text="PDF RAPORU",
             width=115,
             height=40,
@@ -264,7 +281,7 @@ class QualityPage:
             command=self.create_pdf,
         ).grid(
             row=0,
-            column=6,
+            column=7,
             padx=(7, 14),
             pady=12,
         )
@@ -272,6 +289,9 @@ class QualityPage:
 
     def open_haccp_center(self):
         HaccpWindow(self.app)
+
+    def open_prp_center(self):
+        PrerequisiteProgramsWindow(self.app)
 
     def create_pdf(self):
         arama = self.search_entry.get().strip() or None

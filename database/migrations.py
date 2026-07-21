@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 14
+LATEST_SCHEMA_VERSION = 15
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -1903,6 +1903,224 @@ def _migration_14_haccp_engine(conn):
     """)
 
 
+def _migration_15_prerequisite_programs(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS prp_programlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            program_kodu TEXT NOT NULL UNIQUE,
+            program_turu TEXT NOT NULL CHECK (
+                program_turu IN (
+                    'ALERJEN',
+                    'KALIBRASYON',
+                    'BAKIM_ARIZA',
+                    'ZARARLI_MUCADELESI',
+                    'EGITIM_YETKINLIK',
+                    'TACCP',
+                    'VACCP'
+                )
+            ),
+            baslik TEXT NOT NULL,
+            kapsam TEXT,
+            sorumlu_personel_id INTEGER,
+            baslangic_tarihi TEXT,
+            gozden_gecirme_tarihi TEXT,
+            durum TEXT NOT NULL DEFAULT 'TASLAK' CHECK (
+                durum IN (
+                    'TASLAK',
+                    'AKTIF',
+                    'ASKIDA',
+                    'ARSIV'
+                )
+            ),
+            versiyon INTEGER NOT NULL DEFAULT 1 CHECK (
+                versiyon > 0
+            ),
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            guncelleme_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (sorumlu_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS prp_kayitlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            program_id INTEGER NOT NULL,
+            kayit_turu TEXT NOT NULL,
+            kayit_tarihi TEXT NOT NULL,
+            baslik TEXT NOT NULL,
+            aciklama TEXT,
+            sonuc TEXT,
+            uygunsuzluk_var INTEGER NOT NULL DEFAULT 0 CHECK (
+                uygunsuzluk_var IN (0, 1)
+            ),
+            sorumlu_personel_id INTEGER,
+            kanit_referansi TEXT,
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (program_id)
+                REFERENCES prp_programlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (sorumlu_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS prp_aksiyonlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kayit_id INTEGER NOT NULL,
+            aksiyon TEXT NOT NULL,
+            sorumlu_personel_id INTEGER,
+            hedef_tarih TEXT,
+            tamamlanma_tarihi TEXT,
+            durum TEXT NOT NULL DEFAULT 'ACIK' CHECK (
+                durum IN (
+                    'ACIK',
+                    'DEVAM_EDIYOR',
+                    'DOGRULAMADA',
+                    'KAPALI',
+                    'IPTAL'
+                )
+            ),
+            etkinlik_sonucu TEXT,
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (kayit_id)
+                REFERENCES prp_kayitlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (sorumlu_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS prp_alerjen_matrisi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            program_id INTEGER NOT NULL,
+            urun_id INTEGER,
+            alerjen_kodu TEXT NOT NULL,
+            icerir INTEGER NOT NULL DEFAULT 0 CHECK (
+                icerir IN (0, 1)
+            ),
+            capraz_bulasma_riski INTEGER NOT NULL DEFAULT 0 CHECK (
+                capraz_bulasma_riski IN (0, 1)
+            ),
+            kontrol_onlemi TEXT,
+            etiket_beyani TEXT,
+            UNIQUE (program_id, urun_id, alerjen_kodu),
+            FOREIGN KEY (program_id)
+                REFERENCES prp_programlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (urun_id)
+                REFERENCES urunler(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS prp_ekipmanlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            program_id INTEGER NOT NULL,
+            ekipman_kodu TEXT NOT NULL,
+            ekipman_adi TEXT NOT NULL,
+            ekipman_turu TEXT NOT NULL CHECK (
+                ekipman_turu IN (
+                    'OLCUM',
+                    'URETIM',
+                    'DEPOLAMA',
+                    'DIGER'
+                )
+            ),
+            konum TEXT,
+            son_islem_tarihi TEXT,
+            sonraki_islem_tarihi TEXT,
+            durum TEXT NOT NULL DEFAULT 'AKTIF' CHECK (
+                durum IN (
+                    'AKTIF',
+                    'BAKIMDA',
+                    'ARIZALI',
+                    'KULLANIM_DISI'
+                )
+            ),
+            UNIQUE (program_id, ekipman_kodu),
+            FOREIGN KEY (program_id)
+                REFERENCES prp_programlari(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS prp_egitim_katilimlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            program_id INTEGER NOT NULL,
+            personel_id INTEGER NOT NULL,
+            egitim_kodu TEXT NOT NULL,
+            egitim_adi TEXT NOT NULL,
+            egitim_tarihi TEXT NOT NULL,
+            gecerlilik_tarihi TEXT,
+            puan REAL,
+            yetkin INTEGER NOT NULL DEFAULT 0 CHECK (
+                yetkin IN (0, 1)
+            ),
+            UNIQUE (
+                program_id,
+                personel_id,
+                egitim_kodu,
+                egitim_tarihi
+            ),
+            FOREIGN KEY (program_id)
+                REFERENCES prp_programlari(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (personel_id)
+                REFERENCES personeller(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS prp_risk_degerlendirmeleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            program_id INTEGER NOT NULL,
+            risk_turu TEXT NOT NULL CHECK (
+                risk_turu IN ('TACCP', 'VACCP')
+            ),
+            varlik_veya_surec TEXT NOT NULL,
+            tehdit_veya_zafiyet TEXT NOT NULL,
+            olasilik INTEGER NOT NULL CHECK (
+                olasilik BETWEEN 1 AND 5
+            ),
+            etki INTEGER NOT NULL CHECK (
+                etki BETWEEN 1 AND 5
+            ),
+            risk_puani INTEGER NOT NULL CHECK (
+                risk_puani BETWEEN 1 AND 25
+            ),
+            kontrol_onlemleri TEXT,
+            kalan_risk INTEGER CHECK (
+                kalan_risk BETWEEN 1 AND 25
+            ),
+            durum TEXT NOT NULL DEFAULT 'ACIK' CHECK (
+                durum IN ('ACIK', 'KONTROL_ALTINDA', 'KAPALI')
+            ),
+            gozden_gecirme_tarihi TEXT,
+            FOREIGN KEY (program_id)
+                REFERENCES prp_programlari(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_prp_program_tur_durum
+            ON prp_programlari(program_turu, durum);
+
+        CREATE INDEX IF NOT EXISTS idx_prp_kayit_program_tarih
+            ON prp_kayitlari(program_id, kayit_tarihi);
+
+        CREATE INDEX IF NOT EXISTS idx_prp_aksiyon_kayit_durum
+            ON prp_aksiyonlari(kayit_id, durum);
+
+        CREATE INDEX IF NOT EXISTS idx_prp_alerjen_urun
+            ON prp_alerjen_matrisi(urun_id, alerjen_kodu);
+
+        CREATE INDEX IF NOT EXISTS idx_prp_ekipman_tur_durum
+            ON prp_ekipmanlari(ekipman_turu, durum);
+
+        CREATE INDEX IF NOT EXISTS idx_prp_egitim_personel
+            ON prp_egitim_katilimlari(personel_id, gecerlilik_tarihi);
+
+        CREATE INDEX IF NOT EXISTS idx_prp_risk_tur_durum
+            ON prp_risk_degerlendirmeleri(risk_turu, durum);
+    """)
+
+
 MIGRATIONS = (
     (
         1,
@@ -1973,6 +2191,11 @@ MIGRATIONS = (
         14,
         "haccp_engine",
         _migration_14_haccp_engine,
+    ),
+    (
+        15,
+        "prerequisite_programs",
+        _migration_15_prerequisite_programs,
     ),
 )
 

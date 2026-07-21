@@ -62,8 +62,8 @@ class HaccpMigrationTest(unittest.TestCase):
         shutil.copy2(LIVE_DB, database)
         return database
 
-    def test_latest_schema_is_14(self):
-        self.assertEqual(LATEST_SCHEMA_VERSION, 14)
+    def test_latest_schema_includes_haccp_14(self):
+        self.assertGreaterEqual(LATEST_SCHEMA_VERSION, 14)
 
     def test_migration_14_creates_haccp_contract(self):
         database = self._sandbox()
@@ -196,7 +196,7 @@ class HaccpMigrationTest(unittest.TestCase):
             connection.close()
 
         self.assertEqual(count, 1)
-        self.assertEqual(version, 14)
+        self.assertEqual(version, LATEST_SCHEMA_VERSION)
         self.assertTrue(first_sha)
 
     def test_direct_migration_supports_minimal_prerequisites(self):
