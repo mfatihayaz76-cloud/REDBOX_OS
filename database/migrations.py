@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 15
+LATEST_SCHEMA_VERSION = 16
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -2121,6 +2121,250 @@ def _migration_15_prerequisite_programs(conn):
     """)
 
 
+def _migration_16_audit_intelligence(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS gfs_ic_denetimleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            denetim_kodu TEXT NOT NULL UNIQUE,
+            denetim_tarihi TEXT NOT NULL,
+            kapsam TEXT NOT NULL,
+            bas_denetci_personel_id INTEGER,
+            bulgu_sayisi INTEGER NOT NULL DEFAULT 0 CHECK (
+                bulgu_sayisi >= 0
+            ),
+            kritik_bulgu_sayisi INTEGER NOT NULL DEFAULT 0 CHECK (
+                kritik_bulgu_sayisi >= 0
+            ),
+            sonuc TEXT,
+            durum TEXT NOT NULL DEFAULT 'PLANLANDI' CHECK (
+                durum IN (
+                    'PLANLANDI',
+                    'DEVAM_EDIYOR',
+                    'RAPORLANDI',
+                    'KAPALI',
+                    'IPTAL'
+                )
+            ),
+            kapanis_tarihi TEXT,
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (bas_denetci_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS gfs_musteri_sikayetleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sikayet_kodu TEXT NOT NULL UNIQUE,
+            musteri_id INTEGER,
+            bildirim_tarihi TEXT NOT NULL,
+            urun_id INTEGER,
+            lot_kodu TEXT,
+            kategori TEXT NOT NULL,
+            aciklama TEXT NOT NULL,
+            onem_derecesi TEXT NOT NULL DEFAULT 'ORTA' CHECK (
+                onem_derecesi IN (
+                    'DUSUK', 'ORTA', 'YUKSEK', 'KRITIK'
+                )
+            ),
+            kok_neden TEXT,
+            aksiyon TEXT,
+            yanit_tarihi TEXT,
+            durum TEXT NOT NULL DEFAULT 'ACIK' CHECK (
+                durum IN (
+                    'ACIK',
+                    'INCELEMEDE',
+                    'AKSIYONDA',
+                    'KAPALI'
+                )
+            ),
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (musteri_id)
+                REFERENCES musteriler(id)
+                ON DELETE SET NULL,
+            FOREIGN KEY (urun_id)
+                REFERENCES urunler(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS gfs_laboratuvar_numuneleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numune_kodu TEXT NOT NULL UNIQUE,
+            numune_tarihi TEXT NOT NULL,
+            numune_turu TEXT NOT NULL,
+            urun_id INTEGER,
+            lot_kodu TEXT,
+            laboratuvar TEXT,
+            analizler TEXT NOT NULL,
+            sonuc TEXT,
+            uygun INTEGER CHECK (
+                uygun IS NULL OR uygun IN (0, 1)
+            ),
+            rapor_referansi TEXT,
+            durum TEXT NOT NULL DEFAULT 'BEKLIYOR' CHECK (
+                durum IN (
+                    'BEKLIYOR',
+                    'ANALIZDE',
+                    'SONUCLANDI',
+                    'IPTAL'
+                )
+            ),
+            sonuc_tarihi TEXT,
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (urun_id)
+                REFERENCES urunler(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS gfs_urun_durum_kayitlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            urun_id INTEGER,
+            lot_kodu TEXT NOT NULL,
+            durum TEXT NOT NULL CHECK (
+                durum IN (
+                    'KARANTINA',
+                    'BLOKE',
+                    'SERBEST',
+                    'IADE',
+                    'IMHA'
+                )
+            ),
+            karar_tarihi TEXT NOT NULL,
+            neden TEXT,
+            miktar_kg REAL CHECK (
+                miktar_kg IS NULL OR miktar_kg >= 0
+            ),
+            karar_veren_personel_id INTEGER,
+            onceki_durum TEXT,
+            kanit_referansi TEXT,
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (urun_id)
+                REFERENCES urunler(id)
+                ON DELETE SET NULL,
+            FOREIGN KEY (karar_veren_personel_id)
+                REFERENCES personeller(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS gfs_yonetim_gozden_gecirmeleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            toplantı_kodu TEXT NOT NULL UNIQUE,
+            toplantı_tarihi TEXT NOT NULL,
+            donem TEXT NOT NULL,
+            katilimcilar TEXT NOT NULL,
+            gundem TEXT NOT NULL,
+            girdiler TEXT,
+            kararlar TEXT,
+            aksiyonlar TEXT,
+            sonraki_toplanti_tarihi TEXT,
+            durum TEXT NOT NULL DEFAULT 'PLANLANDI' CHECK (
+                durum IN (
+                    'PLANLANDI',
+                    'TAMAMLANDI',
+                    'AKSIYON_TAKIBI',
+                    'KAPALI'
+                )
+            ),
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS gfs_tedarikci_riskleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tedarikci_id INTEGER NOT NULL,
+            degerlendirme_tarihi TEXT NOT NULL,
+            kalite_puani REAL NOT NULL CHECK (
+                kalite_puani BETWEEN 0 AND 100
+            ),
+            teslimat_puani REAL NOT NULL CHECK (
+                teslimat_puani BETWEEN 0 AND 100
+            ),
+            gida_guvenligi_puani REAL NOT NULL CHECK (
+                gida_guvenligi_puani BETWEEN 0 AND 100
+            ),
+            toplam_risk_puani REAL NOT NULL CHECK (
+                toplam_risk_puani BETWEEN 0 AND 100
+            ),
+            risk_seviyesi TEXT NOT NULL CHECK (
+                risk_seviyesi IN (
+                    'DUSUK', 'ORTA', 'YUKSEK', 'KRITIK'
+                )
+            ),
+            onay_durumu TEXT NOT NULL DEFAULT 'KOSULLU' CHECK (
+                onay_durumu IN (
+                    'ONAYLI',
+                    'KOSULLU',
+                    'ASKIDA',
+                    'RED'
+                )
+            ),
+            aksiyon_plani TEXT,
+            sonraki_degerlendirme_tarihi TEXT,
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tedarikci_id)
+                REFERENCES tedarikciler(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS gfs_mock_recall_testleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_kodu TEXT NOT NULL UNIQUE,
+            test_tarihi TEXT NOT NULL,
+            urun_id INTEGER,
+            lot_kodu TEXT NOT NULL,
+            baslangic_zamani TEXT NOT NULL,
+            bitis_zamani TEXT,
+            sure_dakika REAL CHECK (
+                sure_dakika IS NULL OR sure_dakika >= 0
+            ),
+            hedef_miktar REAL CHECK (
+                hedef_miktar IS NULL OR hedef_miktar >= 0
+            ),
+            izlenen_miktar REAL CHECK (
+                izlenen_miktar IS NULL OR izlenen_miktar >= 0
+            ),
+            basari_orani REAL CHECK (
+                basari_orani IS NULL
+                OR basari_orani BETWEEN 0 AND 100
+            ),
+            sonuc TEXT,
+            basarili INTEGER CHECK (
+                basarili IS NULL OR basarili IN (0, 1)
+            ),
+            iyilestirme_aksiyonu TEXT,
+            olusturma_zamani TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (urun_id)
+                REFERENCES urunler(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_gfs_denetim_tarih_durum
+            ON gfs_ic_denetimleri(denetim_tarihi, durum);
+
+        CREATE INDEX IF NOT EXISTS idx_gfs_sikayet_tarih_durum
+            ON gfs_musteri_sikayetleri(bildirim_tarihi, durum);
+
+        CREATE INDEX IF NOT EXISTS idx_gfs_numune_tarih_durum
+            ON gfs_laboratuvar_numuneleri(numune_tarihi, durum);
+
+        CREATE INDEX IF NOT EXISTS idx_gfs_urun_durum_lot
+            ON gfs_urun_durum_kayitlari(lot_kodu, durum);
+
+        CREATE INDEX IF NOT EXISTS idx_gfs_ygd_tarih_durum
+            ON gfs_yonetim_gozden_gecirmeleri(
+                toplantı_tarihi,
+                durum
+            );
+
+        CREATE INDEX IF NOT EXISTS idx_gfs_tedarikci_risk
+            ON gfs_tedarikci_riskleri(
+                tedarikci_id,
+                risk_seviyesi
+            );
+
+        CREATE INDEX IF NOT EXISTS idx_gfs_mock_recall_tarih
+            ON gfs_mock_recall_testleri(test_tarihi, basarili);
+    """)
+
+
 MIGRATIONS = (
     (
         1,
@@ -2196,6 +2440,11 @@ MIGRATIONS = (
         15,
         "prerequisite_programs",
         _migration_15_prerequisite_programs,
+    ),
+    (
+        16,
+        "audit_intelligence",
+        _migration_16_audit_intelligence,
     ),
 )
 

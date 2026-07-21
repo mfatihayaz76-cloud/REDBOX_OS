@@ -56,8 +56,8 @@ class PrerequisiteProgramsMigrationTest(unittest.TestCase):
     def tearDown(self):
         self.conn.close()
 
-    def test_latest_schema_is_15(self):
-        self.assertEqual(LATEST_SCHEMA_VERSION, 15)
+    def test_latest_schema_includes_prp_15(self):
+        self.assertGreaterEqual(LATEST_SCHEMA_VERSION, 15)
 
     def test_migration_creates_prp_contract(self):
         _migration_15_prerequisite_programs(self.conn)

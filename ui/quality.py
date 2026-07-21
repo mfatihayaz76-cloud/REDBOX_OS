@@ -9,6 +9,9 @@ from ui.haccp_window import HaccpWindow
 from ui.prerequisite_programs_window import (
     PrerequisiteProgramsWindow,
 )
+from ui.audit_intelligence_window import (
+    AuditIntelligenceWindow,
+)
 from database.report_engine import kalite_capa_pdf_olustur
 from database.quality_engine import (
     capa_durum_guncelle,
@@ -274,6 +277,20 @@ class QualityPage:
 
         ctk.CTkButton(
             toolbar,
+            text="DENETİM ZEKÂSI",
+            width=145,
+            height=40,
+            fg_color="#1D4ED8",
+            command=self.open_audit_intelligence,
+        ).grid(
+            row=0,
+            column=7,
+            padx=7,
+            pady=12,
+        )
+
+        ctk.CTkButton(
+            toolbar,
             text="PDF RAPORU",
             width=115,
             height=40,
@@ -281,7 +298,7 @@ class QualityPage:
             command=self.create_pdf,
         ).grid(
             row=0,
-            column=7,
+            column=8,
             padx=(7, 14),
             pady=12,
         )
@@ -292,6 +309,9 @@ class QualityPage:
 
     def open_prp_center(self):
         PrerequisiteProgramsWindow(self.app)
+
+    def open_audit_intelligence(self):
+        AuditIntelligenceWindow(self.app)
 
     def create_pdf(self):
         arama = self.search_entry.get().strip() or None
