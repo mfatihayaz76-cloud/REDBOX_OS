@@ -1,81 +1,110 @@
-# REDBOX OS V1 - Final Kabul Raporu
+# REDBOX OS 1.0.0 — Ticari Final Kabul Raporu
 
-**Kabul tarihi:** 17.07.2026
+**Kabul tarihi:** 21.07.2026
+**Ürün:** REDBOX OS
 **Şirket:** REDBOX Gıda Sanayi ve Tic. Ltd. Şti.
-**Sürüm adayı:** v1.0.0
-**Şema sürümü:** 4
+**Sürüm:** 1.0.0
+**Build:** 1
+**Veritabanı şeması:** 13
+**Kabul sonucu:** PASS
 
-## Kabul Sonucu
+## Kabul Özeti
 
-REDBOX OS aktif uygulama kaynakları, canlı veritabanı, operasyon
-matematiği, ekranlar, PDF raporları, yedekleme ve geri yükleme
-bakımından final kabul testini başarıyla tamamladı.
+REDBOX OS 1.0.0; temiz kurulum, ilk kullanıcı oluşturma,
+61 ürünlük ticari reçete kataloğu, üretim–paketleme–sevkiyat
+tam turu, ileri ve geri izlenebilirlik, yetkilendirme, audit,
+yedekleme/geri yükleme, PDF ve performans kriterlerini
+başarıyla tamamladı.
 
-## Kaynak Doğrulaması
+Kabul işlemleri geçici sandbox veritabanlarında veya salt-okunur
+kontrollerle yürütüldü. Canlı veritabanının SHA-256 değeri kabul
+öncesinde ve sonrasında değişmedi.
 
-- Aktif `app.py`, `database/` ve `ui/` Python kaynakları derlendi.
-- Derleme hatası: 0
-- Aktif uygulama açılışı: başarılı
-- Tüm ana ekranlar: başarılı
-- Dashboard Kalite/CAPA uyarıları: başarılı
-- Kalite/CAPA boş kayıt davranışı: başarılı
+## Otomatik Kabul Kanıtı
 
-## Veritabanı Sağlığı
+- Kabul formatı: `REDBOX_COMMERCIAL_ACCEPTANCE_V1`
+- Yol haritası kriteri: `10 / 10`
+- Test modülü: `15`
+- Başarılı test: `135`
+- Test çıkış kodu: `0`
+- Kabul raporu:
+  `release/com5/REDBOX_OS-1.0.0-1-commercial-acceptance.json`
+- Kabul raporu SHA-256:
+  `7616d6f06cef0e5f7838f1adef83796a0a59d7c2ed714ce763c68fdcdaaa955e`
 
+## Yol Haritası Kriterleri
+
+| Kriter | Sonuç |
+|---|---|
+| Temiz cihaz / fresh-install sözleşmesi | PASS |
+| İlk kullanıcı oluşturma | PASS |
+| 60+ reçete katalog testi | PASS — 61 ürün |
+| Üretim–paketleme–sevkiyat tam turu | PASS |
+| İzlenebilirlik ve geri çağırma | PASS |
+| Yetki kontrolleri | PASS |
+| Audit sözleşmesi | PASS |
+| Yedekleme ve geri yükleme | PASS |
+| PDF üretimi | PASS |
+| Performans | PASS |
+
+## Veritabanı Güvenliği
+
+- Şema sürümü: `13`
 - SQLite integrity: `ok`
 - Foreign key ihlali: `0`
-- Şema sürümü: `4`
-- Uygulama tablosu: `29`
-- Test üretimi `test11`: kontrollü olarak kaldırıldı
-- Gerçek üretim lotu `270712`: korundu
+- Canlı DB SHA-256:
+  `9fde8ad78ad8018da865c3e62dc78fe4d0b6fcf323ef54c90c6f6eed7ce428be`
+- Canlı DB korundu: `True`
+- Performans probu: salt-okunur
+- Performans tekrar sayısı: `100`
 
-## Operasyon Mutabakatı
+Canlı operasyon adetleri bu rapora sabit değer olarak yazılmamıştır.
+Böylece işletme verisinin doğal değişimi yanlış bir kabul hatası olarak
+değerlendirilmez.
 
-- Üretim kaydı: `12`
-- Toplam parti: `122`
-- Net üretim: `2390.264 kg`
-- Paketleme kaydı: `13`
-- Paketlenen ürün: `4084 paket / 2362.000 kg`
-- Paketleme firesi: `7.852 kg`
-- Sevkiyat kaydı: `8`
-- Sevk edilen ürün: `4064 paket / 2352.000 kg`
-- Negatif hammadde stoku: `0`
-- Operasyonel ilişki/orphan hatası: `0`
-- Paket gramaj sözleşme hatası: `0`
-- Koli içi adet sözleşme hatası: `0`
+## Performans Sonucu
 
-## Açık Yarı Mamul
+| Ölçüm | Sonuç | Kabul limiti |
+|---|---:|---:|
+| Medyan | 0.074209 ms | 50 ms |
+| P95 | 0.079996 ms | 150 ms |
+| Maksimum | 1.186157 ms | 300 ms |
 
-Gerçek `270712` ürün lotuna ait `20.412 kg` üretim henüz
-paketlenmemiştir. Bu kayıt test verisi değildir ve canlı sistemde
-korunmuştur.
+## Dağıtım Paketi
 
-## PDF Kabulü
+- DMG: `release/com4/REDBOX_OS-1.0.0-1.dmg`
+- DMG SHA-256:
+  `b3919087e9e2632006140e4e29806ae7208e2a167bd691b10c3169dbed82cd1b`
+- DMG SHA eşleşmesi: `True`
+- `hdiutil verify` çıkış kodu: `0`
+- Fresh-install veritabanı: şema 13, gerçek veri içermiyor
+- Uygulama verisi: macOS Application Support altında
+- İmza modu: ad-hoc
+- Notarization: uygulanmadı
 
-Aşağıdaki raporlar oluşturulmuş ve görsel olarak doğrulanmıştır:
+Ad-hoc imzalı paket kontrollü kurulum ve kabul için doğrulanmıştır.
+Genel internet dağıtımı öncesinde Apple Developer ID ile imzalama ve
+Apple notarization işlemleri ayrıca tamamlanmalıdır.
 
-- Genel Stok
-- Üretim
-- Paketleme
-- Sevkiyat
-- İzlenebilirlik ve Geri Çağırma
-- Temizlik
+## Yedekleme ve Kurtarma
 
-Tüm raporlar A4 boyutunda açılmış; tablo taşması, kesilme veya
-okunamayan karakter tespit edilmemiştir.
+- Doğrulanmış manuel ve otomatik yedek sözleşmeleri: PASS
+- Kontrollü geri yükleme hazırlığı: PASS
+- Başlangıç öncesi atomik geri yükleme: PASS
+- Audit hatasında güvenli geri dönüş: PASS
+- Canlı veritabanı koruması: PASS
 
-## Final Yedek
+## Final Sürüm Etiketi
 
-- Dosya: `REDBOX_OS_V1_FINAL_20260717_220115.db`
-- SHA256:
-  `4e31fc34bcd39c0ca169f405d4085f05f18dd6489e2cbd89ceab18aedb1eb748`
-- Geri yükleme kopyası SHA eşleşmesi: başarılı
-- Geri yükleme integrity: `ok`
-- Geri yükleme foreign key ihlali: `0`
+Hedef sürüm etiketi `v1.0.0` olarak belirlenmiştir. Etiket, bu raporu
+ve COM-5 kaynaklarını içeren commit ana dala birleştirildikten ve uzak
+depo eşitliği doğrulandıktan sonra uygulanacaktır. Kabul yürütücüsü
+etiket veya uzak depo yazma işlemi yapmaz.
 
 ## Kabul Kararı
 
-REDBOX OS v1.0.0, REDBOX Gıda'nın 2026 operasyon kayıtlarında
-kullanıma hazırdır.
+REDBOX OS 1.0.0, doğrulanan macOS ortamında kontrollü ticari kullanıma
+hazırdır. Apple Developer ID imzası ve notarization tamamlanmadan paket
+genel internet dağıtımına açılmamalıdır.
 
 **Hazırlayan / Sistem Sorumlusu:** Fatih Ayaz
