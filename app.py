@@ -5,7 +5,18 @@ import sys
 from tkinter import messagebox, ttk
 from datetime import datetime
 
-from database.db import init_database, get_connection
+from database.db import (
+    BACKUP_DIR,
+    DB_PATH,
+    RECOVERY_DIR,
+    get_connection,
+    init_database,
+)
+from database.backup_recovery_engine import (
+    bekleyen_geri_yuklemeyi_uygula,
+    otomatik_yedeklemeyi_calistir,
+    saklama_politikasini_uygula,
+)
 from database.audit_engine import denetim_kaydi_ekle
 from database.stock_engine import (
     uretim_stok_isle,
@@ -52,6 +63,44 @@ from ui.login import authenticate_user
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+
+def _backup_recovery_startup():
+    restore_result = bekleyen_geri_yuklemeyi_uygula(
+        DB_PATH,
+        BACKUP_DIR,
+        RECOVERY_DIR,
+    )
+
+    init_database()
+
+    connection = get_connection()
+
+    try:
+        automatic_result = (
+            otomatik_yedeklemeyi_calistir(
+                connection,
+                DB_PATH,
+                BACKUP_DIR,
+                kullanici=None,
+                oturum_id="system-startup",
+            )
+        )
+
+        retention_result = saklama_politikasini_uygula(
+            connection,
+            BACKUP_DIR,
+            kullanici=None,
+            oturum_id="system-startup",
+        )
+    finally:
+        connection.close()
+
+    return {
+        "restore": restore_result,
+        "automatic_backup": automatic_result,
+        "retention": retention_result,
+    }
 
 
 class RedboxOS(ctk.CTk):
@@ -13395,7 +13444,7 @@ class RedboxOS(ctk.CTk):
 
 
 if __name__ == "__main__":
-    init_database()
+    _backup_recovery_startup()
 
     current_user = authenticate_user()
 

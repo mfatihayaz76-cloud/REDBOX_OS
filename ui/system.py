@@ -16,6 +16,7 @@ from database.migrations import run_migrations
 from ui.login import PBKDF2_ITERATIONS, _parola_hash
 from ui.company_profile_window import CompanyProfileWindow
 from ui.license_center_window import LicenseCenterWindow
+from ui.backup_recovery_window import BackupRecoveryWindow
 
 
 class SystemPage:
@@ -1180,309 +1181,35 @@ class SystemPage:
         )
         self._account_personel_secildi(personel)
 
-    def _database_integrity(self, db_path):
-        conn = sqlite3.connect(
-            f"file:{Path(db_path).resolve()}?mode=ro",
-            uri=True,
-        )
-        try:
-            return conn.execute(
-                "PRAGMA integrity_check"
-            ).fetchone()[0]
-        finally:
-            conn.close()
-
-    def _verified_database_backup(
+    def _open_backup_recovery_center(
         self,
-        source,
-        target,
+        initial_action=None,
     ):
-        source = Path(source)
-        target = Path(target)
-        target.parent.mkdir(
-            parents=True,
-            exist_ok=True,
+        existing = getattr(
+            self,
+            "backup_recovery_window",
+            None,
         )
 
-        source_integrity = self._database_integrity(
-            source
-        )
+        if existing is not None and existing.winfo_exists():
+            existing.focus_force()
+            return
 
-        if source_integrity != "ok":
-            raise RuntimeError(
-                "Canlı veritabanı bütünlük kontrolü "
-                f"başarısız: {source_integrity}"
+        self.backup_recovery_window = (
+            BackupRecoveryWindow(
+                self.app,
+                initial_action=initial_action,
             )
-
-        source_conn = sqlite3.connect(
-            str(source)
         )
-        target_conn = sqlite3.connect(
-            str(target)
-        )
-
-        try:
-            source_conn.backup(target_conn)
-            target_conn.commit()
-        finally:
-            target_conn.close()
-            source_conn.close()
-
-        backup_integrity = self._database_integrity(
-            target
-        )
-
-        if backup_integrity != "ok":
-            target.unlink(missing_ok=True)
-            raise RuntimeError(
-                "Oluşturulan yedeğin bütünlük "
-                f"kontrolü başarısız: {backup_integrity}"
-            )
-
-        return target
 
     def backup_database(self):
-        source = Path("database/redbox_os.db")
-
-        if not source.exists():
-            messagebox.showerror(
-                "Veritabanı Yedeği",
-                "Canlı veritabanı bulunamadı.",
-            )
-            return
-
-        timestamp = datetime.now().strftime(
-            "%Y%m%d_%H%M%S"
+        self._open_backup_recovery_center(
+            initial_action="backup"
         )
-        target = Path("backups") / (
-            f"redbox_os_manual_{timestamp}.db"
-        )
-
-        audit_conn = None
-
-        try:
-            self._verified_database_backup(
-                source,
-                target,
-            )
-
-            audit_conn = get_connection()
-
-            denetim_kaydi_ekle(
-                audit_conn,
-                modul="SISTEM",
-                islem="YEDEKLEME",
-                kullanici=self.app.current_user,
-                kayit_turu="database_backup",
-                aciklama=(
-                    "Doğrulanmış manuel veritabanı "
-                    "yedeği oluşturuldu."
-                ),
-                yeni_deger={
-                    "dosya_adi": target.name,
-                    "butunluk": "OK",
-                },
-                oturum_id=self.app.current_user.get(
-                    "oturum_id"
-                ),
-            )
-
-            audit_conn.commit()
-
-        except Exception as exc:
-            if audit_conn is not None:
-                audit_conn.rollback()
-
-            target.unlink(missing_ok=True)
-            messagebox.showerror(
-                "Veritabanı Yedeği",
-                (
-                    "Yedek oluşturulamadı.\n\n"
-                    f"{exc}"
-                ),
-            )
-            return
-
-        finally:
-            if audit_conn is not None:
-                audit_conn.close()
-
-        messagebox.showinfo(
-            "Veritabanı Yedeği",
-            (
-                "Doğrulanmış veritabanı yedeği "
-                "başarıyla oluşturuldu.\n\n"
-                f"Dosya: {target.name}\n"
-                "Bütünlük: OK"
-            ),
-        )
-
-        self.create()
 
     def restore_database(self):
-        from tkinter import filedialog
-
-        selected = filedialog.askopenfilename(
-            title="REDBOX OS Yedek Dosyası Seç",
-            initialdir="backups",
-            filetypes=[
-                ("SQLite Database", "*.db"),
-                ("Tüm Dosyalar", "*.*"),
-            ],
-        )
-
-        if not selected:
-            return
-
-        selected_path = Path(selected)
-        live_path = Path("database/redbox_os.db")
-
-        try:
-            selected_integrity = (
-                self._database_integrity(
-                    selected_path
-                )
-            )
-
-            if selected_integrity != "ok":
-                raise RuntimeError(
-                    "Seçilen yedek geçerli değil. "
-                    f"Bütünlük sonucu: {selected_integrity}"
-                )
-
-            confirmation = messagebox.askyesno(
-                "Güvenli Geri Yükleme",
-                (
-                    "Seçilen doğrulanmış yedek canlı "
-                    "veritabanının yerine yüklenecek.\n\n"
-                    f"Dosya: {selected_path.name}\n"
-                    "Bütünlük: OK\n\n"
-                    "İşlem öncesinde canlı veritabanının "
-                    "otomatik güvenlik yedeği alınacaktır.\n\n"
-                    "Devam edilsin mi?"
-                ),
-            )
-
-            if not confirmation:
-                return
-
-            timestamp = datetime.now().strftime(
-                "%Y%m%d_%H%M%S"
-            )
-            safety_backup = Path("backups") / (
-                "redbox_os_before_restore_"
-                f"{timestamp}.db"
-            )
-
-            self._verified_database_backup(
-                live_path,
-                safety_backup,
-            )
-
-            temporary = live_path.with_name(
-                "redbox_os_restore_pending.db"
-            )
-            temporary.unlink(missing_ok=True)
-
-            source_conn = sqlite3.connect(
-                f"file:{selected_path.resolve()}?mode=ro",
-                uri=True,
-            )
-            target_conn = sqlite3.connect(
-                str(temporary)
-            )
-
-            try:
-                source_conn.backup(target_conn)
-                target_conn.commit()
-            finally:
-                target_conn.close()
-                source_conn.close()
-
-            temporary_integrity = (
-                self._database_integrity(
-                    temporary
-                )
-            )
-
-            if temporary_integrity != "ok":
-                temporary.unlink(missing_ok=True)
-                raise RuntimeError(
-                    "Geri yükleme kopyası doğrulanamadı. "
-                    f"Sonuç: {temporary_integrity}"
-                )
-
-            os.replace(
-                temporary,
-                live_path,
-            )
-
-            run_migrations(live_path)
-
-            final_integrity = (
-                self._database_integrity(
-                    live_path
-                )
-            )
-
-            if final_integrity != "ok":
-                raise RuntimeError(
-                    "Canlı veritabanının son doğrulaması "
-                    f"başarısız: {final_integrity}"
-                )
-
-            audit_conn = get_connection()
-
-            try:
-                denetim_kaydi_ekle(
-                    audit_conn,
-                    modul="SISTEM",
-                    islem="GERI_YUKLEME",
-                    kullanici=self.app.current_user,
-                    kayit_turu="database_restore",
-                    aciklama=(
-                        "Doğrulanmış veritabanı yedeği "
-                        "canlı sisteme geri yüklendi."
-                    ),
-                    yeni_deger={
-                        "kaynak_dosya": (
-                            selected_path.name
-                        ),
-                        "guvenlik_yedegi": (
-                            safety_backup.name
-                        ),
-                        "butunluk": "OK",
-                    },
-                    oturum_id=self.app.current_user.get(
-                        "oturum_id"
-                    ),
-                )
-
-                audit_conn.commit()
-
-            except Exception:
-                audit_conn.rollback()
-                raise
-
-            finally:
-                audit_conn.close()
-
-        except Exception as exc:
-            messagebox.showerror(
-                "Geri Yükleme Hatası",
-                str(exc),
-            )
-            return
-
-        messagebox.showinfo(
-            "Güvenli Geri Yükleme",
-            (
-                "Veritabanı başarıyla geri yüklendi "
-                "ve doğrulandı.\n\n"
-                f"Ön yedek: {safety_backup.name}\n"
-                "Bütünlük: OK\n\n"
-                "Uygulamayı şimdi kapatıp yeniden açın."
-            ),
+        self._open_backup_recovery_center(
+            initial_action="restore"
         )
 
 

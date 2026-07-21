@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 12
+LATEST_SCHEMA_VERSION = 13
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -1431,6 +1431,138 @@ def _migration_12_licensing_foundation(conn):
         ))
 
 
+def _migration_13_backup_recovery_foundation(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS yedekleme_politikasi (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            aktif INTEGER NOT NULL DEFAULT 1
+                CHECK (aktif IN (0, 1)),
+            siklik_saat INTEGER NOT NULL DEFAULT 24
+                CHECK (
+                    siklik_saat BETWEEN 1 AND 168
+                ),
+            saklama_adedi INTEGER NOT NULL DEFAULT 14
+                CHECK (
+                    saklama_adedi BETWEEN 1 AND 100
+                ),
+            son_otomatik_yedek_zamani TEXT,
+            sonraki_otomatik_yedek_zamani TEXT,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS yedekleme_kayitlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            yedek_uuid TEXT NOT NULL UNIQUE,
+            yedek_turu TEXT NOT NULL
+                CHECK (
+                    yedek_turu IN (
+                        'MANUEL',
+                        'OTOMATIK',
+                        'GERI_YUKLEME_ONCESI'
+                    )
+                ),
+            dosya_adi TEXT NOT NULL,
+            manifest_dosya_adi TEXT NOT NULL,
+            database_sha256 TEXT NOT NULL
+                CHECK (
+                    LENGTH(database_sha256) = 64
+                ),
+            boyut_byte INTEGER NOT NULL
+                CHECK (boyut_byte > 0),
+            schema_version INTEGER NOT NULL
+                CHECK (schema_version >= 1),
+            durum TEXT NOT NULL DEFAULT 'BASARILI'
+                CHECK (
+                    durum IN (
+                        'BASARILI',
+                        'SILINDI'
+                    )
+                ),
+            olusturma_zamani TEXT NOT NULL,
+            dogrulama_zamani TEXT NOT NULL,
+            silinme_zamani TEXT,
+            kullanici_id INTEGER,
+            oturum_id TEXT,
+            FOREIGN KEY (kullanici_id)
+                REFERENCES kullanici_hesaplari(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_yedekleme_kayit_tur_zaman
+        ON yedekleme_kayitlari (
+            yedek_turu,
+            olusturma_zamani
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_yedekleme_kayit_durum_zaman
+        ON yedekleme_kayitlari (
+            durum,
+            olusturma_zamani
+        );
+
+        CREATE TABLE IF NOT EXISTS geri_yukleme_kayitlari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            geri_yukleme_uuid TEXT NOT NULL UNIQUE,
+            kaynak_dosya_adi TEXT NOT NULL,
+            kaynak_sha256 TEXT NOT NULL
+                CHECK (
+                    LENGTH(kaynak_sha256) = 64
+                ),
+            emniyet_yedegi_dosya_adi TEXT NOT NULL,
+            emniyet_yedegi_sha256 TEXT NOT NULL
+                CHECK (
+                    LENGTH(emniyet_yedegi_sha256) = 64
+                ),
+            onceki_schema_version INTEGER NOT NULL,
+            sonraki_schema_version INTEGER,
+            durum TEXT NOT NULL
+                CHECK (
+                    durum IN (
+                        'HAZIRLANDI',
+                        'TAMAMLANDI',
+                        'GERI_ALINDI'
+                    )
+                ),
+            baslangic_zamani TEXT NOT NULL,
+            tamamlanma_zamani TEXT,
+            kullanici_id INTEGER,
+            oturum_id TEXT,
+            FOREIGN KEY (kullanici_id)
+                REFERENCES kullanici_hesaplari(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_geri_yukleme_durum_zaman
+        ON geri_yukleme_kayitlari (
+            durum,
+            baslangic_zamani
+        );
+    """)
+
+    now = datetime.now().astimezone().isoformat()
+
+    conn.execute("""
+        INSERT OR IGNORE INTO yedekleme_politikasi (
+            id,
+            aktif,
+            siklik_saat,
+            saklama_adedi,
+            kayit_zamani,
+            guncelleme_zamani
+        )
+        VALUES (
+            1,
+            1,
+            24,
+            14,
+            ?,
+            ?
+        )
+    """, (now, now))
+
+
 MIGRATIONS = (
     (
         1,
@@ -1491,6 +1623,11 @@ MIGRATIONS = (
         12,
         "licensing_foundation",
         _migration_12_licensing_foundation,
+    ),
+    (
+        13,
+        "backup_recovery_foundation",
+        _migration_13_backup_recovery_foundation,
     ),
 )
 

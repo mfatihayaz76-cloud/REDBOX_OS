@@ -75,8 +75,8 @@ class LicensingMigrationTest(unittest.TestCase):
         finally:
             conn.close()
 
-        self.assertEqual(LATEST_SCHEMA_VERSION, 12)
-        self.assertEqual(version, 12)
+        self.assertGreaterEqual(LATEST_SCHEMA_VERSION, 12)
+        self.assertEqual(version, LATEST_SCHEMA_VERSION)
         self.assertEqual(migration, ("licensing_foundation",))
         self.assertIn("lisans_kayitlari", tables)
         self.assertIn(
@@ -351,7 +351,7 @@ class LicensingMigrationTest(unittest.TestCase):
         finally:
             conn.close()
 
-        self.assertEqual(version, 12)
+        self.assertEqual(version, LATEST_SCHEMA_VERSION)
         self.assertTrue(
             {
                 "lisans_kayitlari",

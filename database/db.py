@@ -67,6 +67,14 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = DATA_DIR / "redbox_os.db"
 
+BACKUP_DIR = (
+    DATA_DIR / "backups"
+    if getattr(sys, "frozen", False)
+    else BASE_DIR / "backups"
+)
+
+RECOVERY_DIR = BACKUP_DIR / ".recovery"
+
 
 def _prepare_packaged_database():
     if not getattr(sys, "frozen", False):
