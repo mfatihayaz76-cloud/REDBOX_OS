@@ -234,21 +234,40 @@ class LicensingActivationTest(LicensingEngineTest):
         self.conn = sqlite3.connect(self.db_path)
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.execute(
+            "DELETE FROM lisans_dogrulama_kayitlari"
+        )
+        self.conn.execute(
+            "DELETE FROM lisans_kayitlari"
+        )
+        self.conn.execute(
             """
-            INSERT INTO firma_profili (
-                id,
-                ticari_unvan,
-                kisa_ad,
-                vergi_no,
-                kayit_zamani
-            )
-            VALUES (
-                1,
-                'Test Gıda A.Ş.',
-                'Test Gıda',
-                '1234567890',
-                '2026-07-21T01:00:00+03:00'
-            )
+            DELETE FROM denetim_kayitlari
+            WHERE modul = 'LISANS'
+            """
+        )
+        self.conn.execute(
+            """
+            UPDATE firma_profili
+            SET
+                ticari_unvan = 'Test Gıda A.Ş.',
+                kisa_ad = 'Test Gıda',
+                vergi_no = '1234567890',
+                aktif = 1
+            WHERE id = 1
+            """
+        )
+        self.conn.execute(
+            """
+            UPDATE lisans_gecis_durumu
+            SET
+                durum = 'AKTIF',
+                baslangic_zamani =
+                    '2026-07-21T00:00:00+03:00',
+                bitis_zamani =
+                    '2026-08-20T00:00:00+03:00',
+                gecis_suresi_gun = 30,
+                tamamlanma_zamani = NULL
+            WHERE id = 1
             """
         )
         self.conn.commit()

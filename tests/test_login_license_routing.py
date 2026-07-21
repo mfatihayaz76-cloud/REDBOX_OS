@@ -30,6 +30,14 @@ class LoginLicenseRoutingTest(unittest.TestCase):
         self.assertIn("Lisans Geçiş Süresi", self.source)
         self.assertIn("Normal kullanım devam eder.", self.source)
 
+    def test_codeless_demo_status_is_visible(self):
+        self.assertIn('== "DEMO_AKTIF"', self.source)
+        self.assertIn("30 GÜNLÜK DEMO", self.source)
+        self.assertIn(
+            "aktivasyon kodu gerekmez",
+            self.source,
+        )
+
     def test_denied_access_opens_controlled_completion_flow(self):
         self.assertIn("CompanyProfileWindow(", self.source)
         self.assertIn("LicenseCenterWindow(", self.source)

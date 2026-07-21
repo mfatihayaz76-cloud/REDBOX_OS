@@ -55,6 +55,24 @@ class LicenseCenterUIContractTest(unittest.TestCase):
         for expression in forbidden:
             self.assertNotIn(expression, self.window_source)
 
+    def test_codeless_demo_status_and_upgrade_are_visible(self):
+        self.assertIn(
+            '"DEMO_AKTIF": "30 GÜNLÜK DEMO AKTİF"',
+            self.window_source,
+        )
+        self.assertIn(
+            '"DEMO_SURESI_DOLDU": "DEMO SÜRESİ DOLDU"',
+            self.window_source,
+        )
+        self.assertIn(
+            "Demo için aktivasyon kodu gerekmez.",
+            self.window_source,
+        )
+        self.assertIn(
+            "imzalı RBX1",
+            self.window_source,
+        )
+
     def test_activation_requires_explicit_confirmation(self):
         self.assertIn("CTkCheckBox", self.window_source)
         self.assertIn("askyesno", self.window_source)

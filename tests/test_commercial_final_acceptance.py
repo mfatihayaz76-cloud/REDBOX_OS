@@ -1,8 +1,13 @@
 import hashlib
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from application_metadata import APP_BUILD, APP_VERSION
+from database.migrations import LATEST_SCHEMA_VERSION
 
 from tools.run_commercial_acceptance import (
     ACCEPTANCE_CRITERIA,
@@ -19,14 +24,17 @@ LIVE_DB = PROJECT_ROOT / "database" / "redbox_os.db"
 DMG_PATH = (
     PROJECT_ROOT
     / "release"
-    / "com4"
-    / "REDBOX_OS-1.0.0-1.dmg"
+    / "macos"
+    / f"REDBOX_OS-{APP_VERSION}-{APP_BUILD}.dmg"
 )
 MANIFEST_PATH = (
     PROJECT_ROOT
     / "release"
-    / "com4"
-    / "REDBOX_OS-1.0.0-1-manifest.json"
+    / "macos"
+    / (
+        f"REDBOX_OS-{APP_VERSION}-{APP_BUILD}"
+        "-manifest.json"
+    )
 )
 
 
@@ -136,7 +144,7 @@ class CommercialFinalAcceptanceTest(unittest.TestCase):
     def test_release_artifacts_are_cryptographically_valid(self):
         if not DMG_PATH.is_file() or not MANIFEST_PATH.is_file():
             self.skipTest(
-                "Yerel COM-4 dağıtım çıktıları mevcut değil."
+                "Yerel Mac 1.1 dağıtım çıktıları mevcut değil."
             )
 
         result = validate_release_artifacts(
@@ -144,13 +152,35 @@ class CommercialFinalAcceptanceTest(unittest.TestCase):
             MANIFEST_PATH,
         )
         self.assertTrue(result["passed"])
-        self.assertEqual(result["version"], "1.0.0")
-        self.assertEqual(result["build"], "1")
+        self.assertEqual(result["version"], APP_VERSION)
+        self.assertEqual(result["build"], APP_BUILD)
         self.assertEqual(
             result["schema_version"],
-            13,
+            LATEST_SCHEMA_VERSION,
         )
         self.assertTrue(result["dmg_sha_matches"])
+
+    def test_direct_script_execution_can_load_project(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    PROJECT_ROOT
+                    / "tools"
+                    / "run_commercial_acceptance.py"
+                ),
+                "--help",
+            ],
+            cwd=PROJECT_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn(
+            "ticari final kabul",
+            completed.stdout,
+        )
 
     def test_runner_is_available_without_execution(self):
         self.assertTrue(callable(run_commercial_acceptance))

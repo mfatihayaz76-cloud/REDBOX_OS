@@ -30,6 +30,28 @@ class LicensingMigrationTest(unittest.TestCase):
             LIVE_DB.read_bytes()
         ).hexdigest()
 
+        conn = sqlite3.connect(self.db_path)
+        try:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            conn.execute(
+                "DELETE FROM lisans_dogrulama_kayitlari"
+            )
+            conn.execute(
+                "DELETE FROM lisans_kayitlari"
+            )
+            conn.execute(
+                "DELETE FROM lisans_gecis_durumu"
+            )
+            conn.execute(
+                """
+                DELETE FROM schema_migrations
+                WHERE version = 12
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
     def tearDown(self):
         self.temp_dir.cleanup()
 
@@ -103,7 +125,16 @@ class LicensingMigrationTest(unittest.TestCase):
                     kisa_ad,
                     kayit_zamani
                 )
-                VALUES (1, 'TEST GIDA A.Ş.', 'TEST', '2026-07-21')
+                VALUES (
+                    1,
+                    'TEST GIDA A.Ş.',
+                    'TEST',
+                    '2026-07-21'
+                )
+                ON CONFLICT(id) DO UPDATE SET
+                    ticari_unvan = excluded.ticari_unvan,
+                    kisa_ad = excluded.kisa_ad,
+                    aktif = 1
                 """
             )
 

@@ -145,7 +145,7 @@ class DistributionPackagingContractTest(unittest.TestCase):
 
     def test_release_documents_are_complete(self):
         paths = release_document_paths()
-        self.assertEqual(len(paths), 4)
+        self.assertEqual(len(paths), 5)
 
         for path in paths:
             self.assertTrue(path.is_file())
@@ -194,7 +194,7 @@ class DistributionPackagingContractTest(unittest.TestCase):
             source,
         )
         self.assertIn(
-            'prefix="redbox_com4_release_"',
+            'prefix="redbox_macos_release_"',
             source,
         )
         self.assertIn(

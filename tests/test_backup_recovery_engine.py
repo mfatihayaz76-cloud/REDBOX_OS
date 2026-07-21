@@ -31,6 +31,26 @@ class BackupRecoveryEngineTest(unittest.TestCase):
         self.source = self.root / "source.db"
         self.backup_dir = self.root / "backups"
         shutil.copy2(LIVE_DB, self.source)
+
+        fixture = sqlite3.connect(self.source)
+        try:
+            fixture.execute("PRAGMA foreign_keys = OFF")
+            fixture.execute(
+                "DELETE FROM yedekleme_kayitlari"
+            )
+            fixture.execute(
+                "DELETE FROM yedekleme_politikasi"
+            )
+            fixture.execute(
+                """
+                DELETE FROM schema_migrations
+                WHERE version = 13
+                """
+            )
+            fixture.commit()
+        finally:
+            fixture.close()
+
         run_migrations(self.source)
         self.live_sha = hashlib.sha256(
             LIVE_DB.read_bytes()

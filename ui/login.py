@@ -333,6 +333,21 @@ class LoginWindow(ctk.CTk):
                 column=0,
                 pady=(8, 0),
             )
+        elif self.license_decision.get("durum") == "DEMO_AKTIF":
+            ctk.CTkLabel(
+                self.form,
+                text=(
+                    "30 GÜNLÜK DEMO: "
+                    + str(self.license_decision.get("kalan_gun", 0))
+                    + " gün kaldı — aktivasyon kodu gerekmez"
+                ),
+                font=("Arial", 11, "bold"),
+                text_color="#F59E0B",
+            ).grid(
+                row=6,
+                column=0,
+                pady=(8, 0),
+            )
 
         self.kullanici_entry = ctk.CTkEntry(
             self.form,

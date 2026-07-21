@@ -30,6 +30,22 @@ class CompanyProfileEngineTest(unittest.TestCase):
         ).hexdigest()
         run_migrations(self.db_path)
         self.conn = sqlite3.connect(self.db_path)
+        self.conn.execute("PRAGMA foreign_keys = OFF")
+        self.conn.execute(
+            "DELETE FROM lisans_dogrulama_kayitlari"
+        )
+        self.conn.execute("DELETE FROM lisans_kayitlari")
+        self.conn.execute("DELETE FROM demo_durumu")
+        self.conn.execute("DELETE FROM ilk_kurulum_durumu")
+        self.conn.execute("DELETE FROM tesis_profilleri")
+        self.conn.execute("DELETE FROM firma_profili")
+        self.conn.execute(
+            """
+            DELETE FROM denetim_kayitlari
+            WHERE kayit_turu = 'firma_profili_legacy'
+            """
+        )
+        self.conn.commit()
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.company = {
             "ticari_unvan": "Test Gıda Sanayi A.Ş.",

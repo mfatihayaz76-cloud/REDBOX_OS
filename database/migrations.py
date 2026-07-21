@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-LATEST_SCHEMA_VERSION = 16
+LATEST_SCHEMA_VERSION = 17
 
 
 QUALITY_CAPA_SCHEMA_SQL = """
@@ -2365,6 +2365,95 @@ def _migration_16_audit_intelligence(conn):
     """)
 
 
+def _migration_17_codeless_demo(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS demo_durumu (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            durum TEXT NOT NULL DEFAULT 'AKTIF'
+                CHECK (
+                    durum IN (
+                        'AKTIF',
+                        'SURESI_DOLDU',
+                        'IPTAL'
+                    )
+                ),
+            baslangic_zamani TEXT NOT NULL,
+            bitis_zamani TEXT NOT NULL,
+            sure_gun INTEGER NOT NULL DEFAULT 30
+                CHECK (sure_gun = 30),
+            son_guvenilir_zaman TEXT NOT NULL,
+            kayit_zamani TEXT NOT NULL,
+            guncelleme_zamani TEXT NOT NULL,
+            CHECK (bitis_zamani > baslangic_zamani),
+            CHECK (
+                son_guvenilir_zaman >= baslangic_zamani
+            )
+        );
+
+        CREATE INDEX IF NOT EXISTS
+        idx_demo_durumu_durum_bitis
+        ON demo_durumu (durum, bitis_zamani);
+    """)
+
+    setup_table_exists = conn.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = 'ilk_kurulum_durumu'
+        LIMIT 1
+        """
+    ).fetchone() is not None
+
+    if not setup_table_exists:
+        return
+
+    setup = conn.execute(
+        """
+        SELECT kullanim_modu, tamamlandi
+        FROM ilk_kurulum_durumu
+        WHERE id = 1
+        """
+    ).fetchone()
+    existing = conn.execute(
+        "SELECT id FROM demo_durumu WHERE id = 1"
+    ).fetchone()
+
+    if (
+        setup is not None
+        and int(setup[1]) == 1
+        and str(setup[0]).upper() == "DEMO"
+        and existing is None
+    ):
+        start_time = datetime.now().astimezone()
+        end_time = start_time + timedelta(days=30)
+        timestamp = start_time.isoformat()
+        conn.execute(
+            """
+            INSERT INTO demo_durumu (
+                id,
+                durum,
+                baslangic_zamani,
+                bitis_zamani,
+                sure_gun,
+                son_guvenilir_zaman,
+                kayit_zamani,
+                guncelleme_zamani
+            )
+            VALUES (
+                1, 'AKTIF', ?, ?, 30, ?, ?, ?
+            )
+            """,
+            (
+                timestamp,
+                end_time.isoformat(),
+                timestamp,
+                timestamp,
+                timestamp,
+            ),
+        )
+
+
 MIGRATIONS = (
     (
         1,
@@ -2445,6 +2534,11 @@ MIGRATIONS = (
         16,
         "audit_intelligence",
         _migration_16_audit_intelligence,
+    ),
+    (
+        17,
+        "codeless_demo_licensing",
+        _migration_17_codeless_demo,
     ),
 )
 

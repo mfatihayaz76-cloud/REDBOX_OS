@@ -29,6 +29,26 @@ class BackupScheduleEngineTest(unittest.TestCase):
         self.live_sha = hashlib.sha256(
             LIVE_DB.read_bytes()
         ).hexdigest()
+
+        fixture = sqlite3.connect(self.db_path)
+        try:
+            fixture.execute("PRAGMA foreign_keys = OFF")
+            fixture.execute(
+                "DELETE FROM yedekleme_kayitlari"
+            )
+            fixture.execute(
+                "DELETE FROM yedekleme_politikasi"
+            )
+            fixture.execute(
+                """
+                DELETE FROM schema_migrations
+                WHERE version = 13
+                """
+            )
+            fixture.commit()
+        finally:
+            fixture.close()
+
         run_migrations(self.db_path)
         self.conn = sqlite3.connect(self.db_path)
         self.conn.execute("PRAGMA foreign_keys = ON")

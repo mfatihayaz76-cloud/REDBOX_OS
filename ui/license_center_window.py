@@ -21,6 +21,10 @@ class LicenseCenterWindow(ctk.CTkToplevel):
         "GRACE": "EK SÜRE",
         "GECIS_SURESI": "30 GÜNLÜK GEÇİŞ",
         "GECIS_SURESI_DOLDU": "GEÇİŞ SÜRESİ DOLDU",
+        "DEMO_AKTIF": "30 GÜNLÜK DEMO AKTİF",
+        "DEMO_SURESI_DOLDU": "DEMO SÜRESİ DOLDU",
+        "DEMO_GECERSIZ": "DEMO GEÇERSİZ",
+        "DEMO_YOK": "DEMO BAŞLATILMADI",
         "LISANS_GEREKLI": "LİSANS GEREKLİ",
         "LISANS_YOK": "LİSANS YOK",
         "GECERSIZ": "GEÇERSİZ",
@@ -464,15 +468,32 @@ class LicenseCenterWindow(ctk.CTkToplevel):
         ]
 
         if "kalan_gun" in self.access_decision:
+            remaining_label = (
+                "Demo süresinde kalan gün: "
+                if status == "DEMO_AKTIF"
+                else "Geçiş süresinde kalan gün: "
+            )
             details.append(
-                "Geçiş süresinde kalan gün: "
+                remaining_label
                 + str(self.access_decision["kalan_gun"])
             )
 
         if self.access_decision.get("bitis_zamani"):
+            end_label = (
+                "Demo bitiş zamanı: "
+                if status.startswith("DEMO_")
+                else "Geçiş bitiş zamanı: "
+            )
             details.append(
-                "Geçiş bitiş zamanı: "
+                end_label
                 + str(self.access_decision["bitis_zamani"])
+            )
+
+        if status == "DEMO_AKTIF":
+            details.append(
+                "Demo için aktivasyon kodu gerekmez. "
+                "Ticari kullanıma geçerken imzalı RBX1 "
+                "lisansı etkinleştirin."
             )
 
         payload = self.access_decision.get("payload") or {}

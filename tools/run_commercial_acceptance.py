@@ -12,6 +12,14 @@ from datetime import datetime
 from pathlib import Path
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from application_metadata import APP_BUILD, APP_VERSION
+from database.migrations import LATEST_SCHEMA_VERSION
+
+
 ACCEPTANCE_CRITERIA = (
     "clean_install",
     "first_user",
@@ -37,6 +45,7 @@ def acceptance_test_modules():
         "clean_install": (
             "tests.test_distribution_installation_acceptance",
             "tests.test_company_neutral_fresh_install",
+            "tests.test_codeless_demo_licensing",
         ),
         "first_user": (
             "tests.test_first_setup_engine",
@@ -213,27 +222,29 @@ def validate_release_artifacts(dmg_path, manifest_path):
         "dmg_verify_exit": verification.returncode,
     }
     result["passed"] = (
-        result["version"] == "1.0.0"
-        and result["build"] == "1"
-        and result["schema_version"] == 13
+        result["version"] == APP_VERSION
+        and result["build"] == APP_BUILD
+        and result["schema_version"] == LATEST_SCHEMA_VERSION
         and result["dmg_sha_matches"]
         and result["dmg_verify_exit"] == 0
     )
     return result
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LIVE_DATABASE = PROJECT_ROOT / "database" / "redbox_os.db"
 DEFAULT_DMG = (
     PROJECT_ROOT
     / "release"
-    / "com4"
-    / "REDBOX_OS-1.0.0-1.dmg"
+    / "macos"
+    / f"REDBOX_OS-{APP_VERSION}-{APP_BUILD}.dmg"
 )
 DEFAULT_MANIFEST = (
     PROJECT_ROOT
     / "release"
-    / "com4"
-    / "REDBOX_OS-1.0.0-1-manifest.json"
+    / "macos"
+    / (
+        f"REDBOX_OS-{APP_VERSION}-{APP_BUILD}"
+        "-manifest.json"
+    )
 )
 
 
@@ -372,8 +383,11 @@ def main():
         default=(
             PROJECT_ROOT
             / "release"
-            / "com5"
-            / "REDBOX_OS-1.0.0-1-commercial-acceptance.json"
+            / "macos"
+            / (
+                f"REDBOX_OS-{APP_VERSION}-{APP_BUILD}"
+                "-commercial-acceptance.json"
+            )
         ),
         help="JSON kabul raporu hedefi.",
     )

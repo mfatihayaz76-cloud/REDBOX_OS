@@ -48,8 +48,9 @@ Paketlenmiş macOS uygulamasındaki kullanıcı verileri:
 - `docs/KULLANICI_KILAVUZU.md`
 - `docs/KURULUM_KILAVUZU_MACOS.md`
 - `docs/LISANS_VE_DESTEK.md`
-- `docs/SURUM_NOTLARI_1.0.0.md`
+- `docs/SURUM_NOTLARI_1.1.0.md`
+- `docs/USB_DEMO_TESLIM_KILAVUZU.md`
 
 ## Sürüm
 
-REDBOX OS v1.0.0
+REDBOX OS v1.1.0 (Build 2)

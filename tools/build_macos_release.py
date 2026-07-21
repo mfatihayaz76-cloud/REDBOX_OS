@@ -25,15 +25,16 @@ from application_metadata import (
 from database.migrations import LATEST_SCHEMA_VERSION
 
 
-BUILD_ROOT = PROJECT_ROOT / "build" / "com4"
-DIST_ROOT = PROJECT_ROOT / "dist" / "com4"
-RELEASE_ROOT = PROJECT_ROOT / "release" / "com4"
+BUILD_ROOT = PROJECT_ROOT / "build" / "macos"
+DIST_ROOT = PROJECT_ROOT / "dist" / "macos"
+RELEASE_ROOT = PROJECT_ROOT / "release" / "macos"
 
 RELEASE_DOCUMENTS = (
     PROJECT_ROOT / "docs" / "KULLANICI_KILAVUZU.md",
     PROJECT_ROOT / "docs" / "KURULUM_KILAVUZU_MACOS.md",
     PROJECT_ROOT / "docs" / "LISANS_VE_DESTEK.md",
-    PROJECT_ROOT / "docs" / "SURUM_NOTLARI_1.0.0.md",
+    PROJECT_ROOT / "docs" / "SURUM_NOTLARI_1.1.0.md",
+    PROJECT_ROOT / "docs" / "USB_DEMO_TESLIM_KILAVUZU.md",
 )
 
 
@@ -270,7 +271,7 @@ def build_release():
     dmg_path = RELEASE_ROOT / names["dmg"]
 
     with tempfile.TemporaryDirectory(
-        prefix="redbox_com4_release_"
+        prefix="redbox_macos_release_"
     ) as temp:
         local_root = Path(temp)
         dmg_stage = local_root / "dmg_stage"

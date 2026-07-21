@@ -95,6 +95,12 @@ class FirstSetupUpgradeCompatibilityTest(unittest.TestCase):
         run_migrations(self.sandbox_db)
 
         with closing(self.connect()) as conn:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            conn.execute(
+                "DELETE FROM lisans_dogrulama_kayitlari"
+            )
+            conn.execute("DELETE FROM lisans_kayitlari")
+            conn.execute("DELETE FROM demo_durumu")
             conn.execute(
                 "DELETE FROM kullanici_hesaplari"
             )
@@ -108,6 +114,7 @@ class FirstSetupUpgradeCompatibilityTest(unittest.TestCase):
                 "DELETE FROM firma_profili"
             )
             conn.commit()
+            conn.execute("PRAGMA foreign_keys = ON")
 
             self.assertTrue(
                 ilk_kurulum_gerekli_mi(conn)

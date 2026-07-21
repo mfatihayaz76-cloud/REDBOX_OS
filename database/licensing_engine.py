@@ -22,6 +22,7 @@ from database.audit_engine import denetim_kaydi_ekle
 LICENSE_PREFIX = "RBX1"
 PRODUCT_CODE = "REDBOX_OS"
 LICENSE_CONTRACT_VERSION = 1
+DEMO_DURATION_DAYS = 30
 
 REQUIRED_PAYLOAD_FIELDS = {
     "sozlesme_surumu",
@@ -943,6 +944,237 @@ def aktif_lisans_durumunu_getir(
     return result
 
 
+def _demo_result(
+    status,
+    start_time=None,
+    end_time=None,
+    current_time=None,
+    reason=None,
+):
+    access_allowed = status == "DEMO_AKTIF"
+    result = {
+        "erisim_izni": access_allowed,
+        "gecerli": False,
+        "durum": status,
+        "neden_kodu": reason or status,
+        "akis": (
+            "NORMAL_GIRIS"
+            if access_allowed
+            else "LISANS_AKTIVASYONU"
+        ),
+    }
+
+    if start_time is not None:
+        result["baslangic_zamani"] = start_time.isoformat()
+    if end_time is not None:
+        result["bitis_zamani"] = end_time.isoformat()
+    if (
+        access_allowed
+        and end_time is not None
+        and current_time is not None
+    ):
+        result["kalan_gun"] = max(
+            0,
+            (end_time.date() - current_time.date()).days,
+        )
+
+    return result
+
+
+def demo_durumunu_getir(conn, simdi=None):
+    current_time = _activation_datetime(simdi)
+    row = conn.execute(
+        """
+        SELECT
+            durum,
+            baslangic_zamani,
+            bitis_zamani,
+            sure_gun,
+            son_guvenilir_zaman
+        FROM demo_durumu
+        WHERE id = 1
+        """
+    ).fetchone()
+
+    if row is None:
+        return _demo_result(
+            "DEMO_YOK",
+            reason="DEMO_BASLATILMADI",
+        )
+
+    try:
+        start_time = datetime.fromisoformat(row[1])
+        end_time = datetime.fromisoformat(row[2])
+        trusted_time = datetime.fromisoformat(row[4])
+    except (TypeError, ValueError):
+        return _demo_result(
+            "DEMO_GECERSIZ",
+            reason="DEMO_ZAMAN_KAYDI_BOZUK",
+        )
+
+    if start_time.tzinfo is None:
+        start_time = start_time.astimezone()
+    if end_time.tzinfo is None:
+        end_time = end_time.astimezone()
+    if trusted_time.tzinfo is None:
+        trusted_time = trusted_time.astimezone()
+
+    if current_time < trusted_time - timedelta(minutes=5):
+        return _demo_result(
+            "DEMO_GECERSIZ",
+            start_time,
+            end_time,
+            current_time,
+            reason="SISTEM_SAATI_GERI_ALINDI",
+        )
+
+    owns_transaction = not conn.in_transaction
+    if owns_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+
+    try:
+        if current_time > end_time:
+            conn.execute(
+                """
+                UPDATE demo_durumu
+                SET
+                    durum = 'SURESI_DOLDU',
+                    son_guvenilir_zaman = ?,
+                    guncelleme_zamani = ?
+                WHERE id = 1
+                """,
+                (
+                    current_time.isoformat(),
+                    current_time.isoformat(),
+                ),
+            )
+            if owns_transaction:
+                conn.commit()
+            return _demo_result(
+                "DEMO_SURESI_DOLDU",
+                start_time,
+                end_time,
+                current_time,
+                reason="DEMO_SURESI_DOLDU",
+            )
+
+        if row[0] != "AKTIF":
+            if owns_transaction:
+                conn.rollback()
+            return _demo_result(
+                "DEMO_" + str(row[0]),
+                start_time,
+                end_time,
+                current_time,
+                reason="DEMO_AKTIF_DEGIL",
+            )
+
+        conn.execute(
+            """
+            UPDATE demo_durumu
+            SET
+                son_guvenilir_zaman = ?,
+                guncelleme_zamani = ?
+            WHERE id = 1
+            """,
+            (
+                current_time.isoformat(),
+                current_time.isoformat(),
+            ),
+        )
+        if owns_transaction:
+            conn.commit()
+    except Exception:
+        if owns_transaction:
+            conn.rollback()
+        raise
+
+    return _demo_result(
+        "DEMO_AKTIF",
+        start_time,
+        end_time,
+        current_time,
+        reason="KODSUZ_DEMO_AKTIF",
+    )
+
+
+def demo_baslat(conn, simdi=None):
+    setup = conn.execute(
+        """
+        SELECT kullanim_modu, tamamlandi
+        FROM ilk_kurulum_durumu
+        WHERE id = 1
+        """
+    ).fetchone()
+
+    if (
+        setup is None
+        or int(setup[1]) != 1
+        or str(setup[0]).upper() != "DEMO"
+    ):
+        raise ValueError(
+            "Kodsuz demo yalnız tamamlanmış DEMO "
+            "kurulumunda başlatılabilir."
+        )
+
+    existing = conn.execute(
+        "SELECT id FROM demo_durumu WHERE id = 1"
+    ).fetchone()
+    if existing is not None:
+        return demo_durumunu_getir(conn, simdi=simdi)
+
+    current_time = _activation_datetime(simdi)
+    end_time = current_time + timedelta(
+        days=DEMO_DURATION_DAYS
+    )
+    timestamp = current_time.isoformat()
+    owns_transaction = not conn.in_transaction
+
+    if owns_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+
+    try:
+        conn.execute(
+            """
+            INSERT INTO demo_durumu (
+                id,
+                durum,
+                baslangic_zamani,
+                bitis_zamani,
+                sure_gun,
+                son_guvenilir_zaman,
+                kayit_zamani,
+                guncelleme_zamani
+            )
+            VALUES (
+                1, 'AKTIF', ?, ?, ?, ?, ?, ?
+            )
+            """,
+            (
+                timestamp,
+                end_time.isoformat(),
+                DEMO_DURATION_DAYS,
+                timestamp,
+                timestamp,
+                timestamp,
+            ),
+        )
+        if owns_transaction:
+            conn.commit()
+    except Exception:
+        if owns_transaction:
+            conn.rollback()
+        raise
+
+    return _demo_result(
+        "DEMO_AKTIF",
+        current_time,
+        end_time,
+        current_time,
+        reason="KODSUZ_DEMO_BASLATILDI",
+    )
+
+
 def lisans_erisim_karari(
     conn,
     acik_anahtarlar,
@@ -1002,6 +1234,32 @@ def lisans_erisim_karari(
             "neden_kodu": "ILK_KURULUM_TAMAMLANMALI",
             "akis": "ILK_KURULUM",
         }
+
+    setup_mode = conn.execute(
+        """
+        SELECT kullanim_modu
+        FROM ilk_kurulum_durumu
+        WHERE id = 1
+          AND tamamlandi = 1
+        """
+    ).fetchone()
+
+    if (
+        setup_mode is not None
+        and str(setup_mode[0]).upper() == "DEMO"
+    ):
+        demo_row = conn.execute(
+            "SELECT id FROM demo_durumu WHERE id = 1"
+        ).fetchone()
+        if demo_row is None:
+            return demo_baslat(
+                conn,
+                simdi=current_time,
+            )
+        return demo_durumunu_getir(
+            conn,
+            simdi=current_time,
+        )
 
     transition = conn.execute(
         """

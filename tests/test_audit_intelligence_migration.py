@@ -52,7 +52,7 @@ class AuditIntelligenceMigrationTest(unittest.TestCase):
         self.conn.close()
 
     def test_latest_schema_is_16(self):
-        self.assertEqual(LATEST_SCHEMA_VERSION, 16)
+        self.assertGreaterEqual(LATEST_SCHEMA_VERSION, 16)
 
     def test_migration_creates_audit_intelligence_contract(self):
         _migration_16_audit_intelligence(self.conn)

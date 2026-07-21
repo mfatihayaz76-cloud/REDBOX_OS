@@ -134,6 +134,13 @@ class FirstSetupMigrationTest(unittest.TestCase):
         run_migrations(self.sandbox_db)
 
         with closing(self.connect()) as conn:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            conn.execute("DELETE FROM ilk_kurulum_durumu")
+            conn.execute("DELETE FROM tesis_profilleri")
+            conn.execute("DELETE FROM firma_profili")
+            conn.commit()
+            conn.execute("PRAGMA foreign_keys = ON")
+
             conn.execute("""
                 INSERT INTO firma_profili (
                     id,
